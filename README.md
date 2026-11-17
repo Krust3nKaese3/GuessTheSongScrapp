@@ -2,7 +2,7 @@
 
 Partyspiel für **ein** Handy, das im Kreis weitergegeben wird. Der DJ sucht einen Song, Spotify spielt ihn über die Bluetooth-Box, alle anderen raten den Titel.
 
-Der Ton läuft in der installierten Spotify-App (App Remote), nicht im WebView. SongratenScrapp streamt nichts, nutzt kein `preview_url` und kein Web Playback SDK.
+Der Ton läuft in der installierten Spotify-App (App Remote), nicht im WebView. GuessTheSongScrapp streamt nichts, nutzt kein `preview_url` und kein Web Playback SDK.
 
 ## In OpenScr hinzufügen
 
@@ -11,7 +11,7 @@ Der Ton läuft in der installierten Spotify-App (App Remote), nicht im WebView. 
 3. Diese URL einfügen:
 
 ```
-https://github.com/Krust3nKaese3/SongratenScrapp
+https://github.com/Krust3nKaese3/GuessTheSongScrapp
 ```
 
 4. Die Berechtigungen bestätigen:
@@ -27,7 +27,7 @@ https://github.com/Krust3nKaese3/SongratenScrapp
 2. Die **Client ID** in OpenScr auf dem Startbildschirm unter **Spotify** eintragen und speichern. Sie steht absichtlich nicht in diesem Repository und wird hier nicht abgefragt.
 3. Im Spiel auf „Erneut prüfen“, „Anmelden“ und „Verbinden“ tippen, falls der Status das noch verlangt.
 
-Ohne gespeicherte Client ID meldet die Bridge: „Keine Spotify Client ID hinterlegt. Bitte in den OpenScr-Einstellungen eintragen.“ Song raten zeigt diesen Hinweis und verweist auf die OpenScr-Einstellungen. SongratenScrapp bekommt keinen Access-Token.
+Ohne gespeicherte Client ID meldet die Bridge: „Keine Spotify Client ID hinterlegt. Bitte in den OpenScr-Einstellungen eintragen.“ Song raten zeigt diesen Hinweis und verweist auf die OpenScr-Einstellungen. GuessTheSongScrapp bekommt keinen Access-Token.
 
 Dashboard, Redirect-URI und SHA1 stehen in der OpenScr-Doku: [SPOTIFY.md](https://github.com/Krust3nKaese3/OpenScr/blob/main/SPOTIFY.md).
 
@@ -68,7 +68,7 @@ Die Lobby davor bleibt wie bisher: Erneut prüfen, Anmelden, Verbinden.
 
 ## Wenn die App mitten im Spiel schließt
 
-Punktestand und der laufende Spielstand werden im Speicher von OpenScr festgehalten (`OpenScrBridge.storage`, auf dem Gerät AsyncStorage, getrennt pro OpenScrapp), sobald sich im Spiel etwas ändert. Ältere Builds legen dasselbe Objekt unter `EveryAppBridge` ab. SongratenScrapp liest `window.OpenScrBridge` und fällt auf `window.EveryAppBridge` zurück. Die Speicher-Schlüssel bleiben unverändert. Dieselben Namen werden schon in der Lobby festgehalten, sobald jemand einen Namen hinzufügt, ändert oder entfernt (`songraten.lobby.v1`). Der laufende Spielstand bleibt unter `songraten.game.v1`. Der `localStorage` des WebViews reicht dafür nicht: OpenScr lädt die OpenScrapp mit `source={{ html }}` und ohne `baseUrl`, also ohne stabile Origin. `localStorage` kann in derselben Sitzung noch funktionieren, übersteht aber das vollständige Schließen von OpenScr nicht.
+Punktestand und der laufende Spielstand werden im Speicher von OpenScr festgehalten (`OpenScrBridge.storage`, auf dem Gerät AsyncStorage, getrennt pro OpenScrapp), sobald sich im Spiel etwas ändert. Ältere Builds legen dasselbe Objekt unter `EveryAppBridge` ab. GuessTheSongScrapp liest `window.OpenScrBridge` und fällt auf `window.EveryAppBridge` zurück. Die Speicher-Schlüssel bleiben unverändert. Dieselben Namen werden schon in der Lobby festgehalten, sobald jemand einen Namen hinzufügt, ändert oder entfernt (`songraten.lobby.v1`). Der laufende Spielstand bleibt unter `songraten.game.v1`. Der `localStorage` des WebViews reicht dafür nicht: OpenScr lädt die OpenScrapp mit `source={{ html }}` und ohne `baseUrl`, also ohne stabile Origin. `localStorage` kann in derselben Sitzung noch funktionieren, übersteht aber das vollständige Schließen von OpenScr nicht.
 
 Deshalb steht **storage** in den Berechtigungen. Ist sie erteilt und eine Runde läuft, öffnet der nächste Start nach einem vollständigen Schließen wieder denselben Bildschirm. Namen müssen nicht neu eingetragen werden. Wurden Namen nur eingetragen und das Spiel noch nicht gestartet, öffnet sich die Lobby mit genau diesen Namen. Fehlt die Bridge oder die Berechtigung (zum Beispiel im Browser), läuft das Spiel weiter. Der Stand wird dann nicht über einen vollständigen Neustart hinweg wiederhergestellt.
 
@@ -117,7 +117,7 @@ Einblenden nach einem richtigen Tipp heißt: Spotify-Lautstärke auf 0, Wiederga
 
 ## Bildschirm
 
-Ab der Lobby beziehungsweise ab **Spiel starten** bis zum Spielende soll das Handy nicht von allein dunkel werden: in der Lobby, bei der Namenswahl, auf der Wertung, zwischen den Runden und auf dem Buzzer. Nach dem Spielende und über Home wird das wieder losgelassen. Die OpenScr-Bridge hat dafür keine Funktion. SongratenScrapp macht es selbst.
+Ab der Lobby beziehungsweise ab **Spiel starten** bis zum Spielende soll das Handy nicht von allein dunkel werden: in der Lobby, bei der Namenswahl, auf der Wertung, zwischen den Runden und auf dem Buzzer. Nach dem Spielende und über Home wird das wieder losgelassen. Die OpenScr-Bridge hat dafür keine Funktion. GuessTheSongScrapp macht es selbst.
 
 Zuerst `navigator.wakeLock.request('screen')`. Wird die Seite verdeckt und wieder sichtbar, wird der Lock neu geholt, ebenso nach dem Wiederherstellen eines Spielstands. Fehlt die Wake-Lock-API, passiert dabei nichts. Lehnt der Lock ab oder fehlt er, startet ein Tippen (Name, Spiel starten, Buzzer oder eine andere Taste) ein winziges, stummes, gelooptes Video ohne Tonspur. Das ist der NoSleep-Weg fürs Android-WebView. Lautstärke 0, `muted`, `playsinline`. Spotify und die drei Effekte bleiben unangetastet.
 
@@ -132,7 +132,7 @@ Ohne OpenScr-Bridge erscheint ein kurzer Hinweis. Das Spiel startet dort nicht u
 ## Aufbau
 
 ```
-SongratenScrapp/
+GuessTheSongScrapp/
 ├── assets/sounds/   # buzzer.mp3, correct.mp3, wrong.mp3
 ├── openscr.json     # Manifest (OpenScr)
 ├── everyapp.json    # dasselbe Manifest, Fallback für ältere Builds
