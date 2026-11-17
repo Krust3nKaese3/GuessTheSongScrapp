@@ -2,38 +2,38 @@
 
 Partyspiel für **ein** Handy, das im Kreis weitergegeben wird. Der DJ sucht einen Song, Spotify spielt ihn über die Bluetooth-Box, alle anderen raten den Titel.
 
-Der Ton läuft in der installierten Spotify-App (App Remote), nicht im WebView. Diese Mini-App streamt nichts, nutzt kein `preview_url` und kein Web Playback SDK.
+Der Ton läuft in der installierten Spotify-App (App Remote), nicht im WebView. SongratenScrapp streamt nichts, nutzt kein `preview_url` und kein Web Playback SDK.
 
-## In EveryApp hinzufügen
+## In OpenScr hinzufügen
 
-1. EveryApp auf dem Android-Gerät öffnen. Es muss ein **SrvEveryApp-** oder **EveryApp-Build** sein, der die Spotify-Bridge schon enthält (`com.everyapp.container.dev` bzw. `com.everyapp.container`).
+1. OpenScr auf dem Android-Gerät öffnen. Es muss ein **SrvOpenScr-** oder **OpenScr-Build** sein, der die Spotify-Bridge schon enthält (`com.openscr.app.dev` bzw. `com.openscr.app`).
 2. Auf „App hinzufügen“ tippen.
 3. Diese URL einfügen:
 
 ```
-https://github.com/Krust3nKaese3/evryGuessTheSong
+https://github.com/Krust3nKaese3/SongratenScrapp
 ```
 
 4. Die Berechtigungen bestätigen:
    - **spotify** — Suche und Wiedergabe über die Spotify-App
    - **vibration** — kurzes haptisches Feedback, wenn der DJ auf den roten Stopp-Buzzer tippt
-   - **storage** — den laufenden Spielstand über das vollständige Schließen von EveryApp hinaus behalten
+   - **storage** — den laufenden Spielstand über das vollständige Schließen von OpenScr hinaus behalten
 
 5. Die Box (Bluetooth-Lautsprecher) wie gewohnt mit dem Handy koppeln. Song raten verbindet sich nicht selbst mit dem Lautsprecher.
 
 ## Spotify vorbereiten
 
 1. Spotify installieren und mit einem **Premium**-Account anmelden. Einen bestimmten Track (`spotify:track:…`) abspielen geht nur mit Premium.
-2. Die **Client ID** in EveryApp auf dem Startbildschirm unter **Spotify** eintragen und speichern. Sie steht absichtlich nicht in diesem Repository und wird hier nicht abgefragt.
+2. Die **Client ID** in OpenScr auf dem Startbildschirm unter **Spotify** eintragen und speichern. Sie steht absichtlich nicht in diesem Repository und wird hier nicht abgefragt.
 3. Im Spiel auf „Erneut prüfen“, „Anmelden“ und „Verbinden“ tippen, falls der Status das noch verlangt.
 
-Ohne gespeicherte Client ID meldet die Bridge: „Keine Spotify Client ID hinterlegt. Bitte in den EveryApp-Einstellungen eintragen.“ Song raten zeigt diesen Hinweis und verweist auf die EveryApp-Einstellungen. Die Mini-App bekommt keinen Access-Token.
+Ohne gespeicherte Client ID meldet die Bridge: „Keine Spotify Client ID hinterlegt. Bitte in den OpenScr-Einstellungen eintragen.“ Song raten zeigt diesen Hinweis und verweist auf die OpenScr-Einstellungen. SongratenScrapp bekommt keinen Access-Token.
 
-Dashboard, Redirect-URI und SHA1 stehen in der EveryApp-Doku: [SPOTIFY.md](https://github.com/Krust3nKaese3/EveryApp/blob/main/SPOTIFY.md).
+Dashboard, Redirect-URI und SHA1 stehen in der OpenScr-Doku: [SPOTIFY.md](https://github.com/Krust3nKaese3/OpenScr/blob/main/SPOTIFY.md).
 
 ## Regeln
 
-Alle sitzen im Kreis. Ein Handy geht reihum. Gespielt wird, bis jemand auf **Spiel beenden** tippt. Danach kommt der Endstand. Punkte gelten nur für diese Runde. Ein laufendes Spiel bleibt im EveryApp-Speicher erhalten, bis es mit **Spiel beenden** endet.
+Alle sitzen im Kreis. Ein Handy geht reihum. Gespielt wird, bis jemand auf **Spiel beenden** tippt. Danach kommt der Endstand. Punkte gelten nur für diese Runde. Ein laufendes Spiel bleibt im OpenScr-Speicher erhalten, bis es mit **Spiel beenden** endet.
 
 Jede Runde:
 
@@ -62,13 +62,13 @@ Die Liste gilt nur für den aktuellen DJ. Geht das Handy weiter (der nächste DJ
 
 Nach „Spiel starten“ kann die Verbindung zu Spotify weg sein, zum Beispiel auf der DJ-Wahl, der Suche, während der Song läuft, beim Buzzer, beim Tipp, bei der Auflösung oder bei der Frage zum Songende. Dann erscheint auf dem aktuellen Bildschirm **Verbinden**.
 
-Verbinden meldet bei Bedarf an und verbindet danach neu, über die Spotify-Bridge von EveryApp. Die Runde bleibt offen: dieselben Mitspieler, derselbe Punktestand, derselbe DJ, dieselbe Phase, dieselben schon gestarteten Songs, die Empfehlungen und die aktuelle Auswahl. Es startet kein neues Spiel. Lief gerade ein Song, geht die Wiedergabe danach an derselben Stelle weiter. Der Song wird dabei nicht übersprungen und nicht aufgelöst.
+Verbinden meldet bei Bedarf an und verbindet danach neu, über die Spotify-Bridge von OpenScr. Die Runde bleibt offen: dieselben Mitspieler, derselbe Punktestand, derselbe DJ, dieselbe Phase, dieselben schon gestarteten Songs, die Empfehlungen und die aktuelle Auswahl. Es startet kein neues Spiel. Lief gerade ein Song, geht die Wiedergabe danach an derselben Stelle weiter. Der Song wird dabei nicht übersprungen und nicht aufgelöst.
 
 Die Lobby davor bleibt wie bisher: Erneut prüfen, Anmelden, Verbinden.
 
 ## Wenn die App mitten im Spiel schließt
 
-Punktestand und der laufende Spielstand werden im Speicher von EveryApp festgehalten (`EveryAppBridge.storage`, auf dem Gerät AsyncStorage, getrennt pro Mini-App), sobald sich im Spiel etwas ändert. Dieselben Namen werden schon in der Lobby festgehalten, sobald jemand einen Namen hinzufügt, ändert oder entfernt (`songraten.lobby.v1`). Der laufende Spielstand bleibt unter `songraten.game.v1`. Der `localStorage` des WebViews reicht dafür nicht: EveryApp lädt die Mini-App mit `source={{ html }}` und ohne `baseUrl`, also ohne stabile Origin. `localStorage` kann in derselben Sitzung noch funktionieren, übersteht aber das vollständige Schließen von EveryApp nicht.
+Punktestand und der laufende Spielstand werden im Speicher von OpenScr festgehalten (`OpenScrBridge.storage`, auf dem Gerät AsyncStorage, getrennt pro OpenScrapp), sobald sich im Spiel etwas ändert. Ältere Builds legen dasselbe Objekt unter `EveryAppBridge` ab. SongratenScrapp liest `window.OpenScrBridge` und fällt auf `window.EveryAppBridge` zurück. Die Speicher-Schlüssel bleiben unverändert. Dieselben Namen werden schon in der Lobby festgehalten, sobald jemand einen Namen hinzufügt, ändert oder entfernt (`songraten.lobby.v1`). Der laufende Spielstand bleibt unter `songraten.game.v1`. Der `localStorage` des WebViews reicht dafür nicht: OpenScr lädt die OpenScrapp mit `source={{ html }}` und ohne `baseUrl`, also ohne stabile Origin. `localStorage` kann in derselben Sitzung noch funktionieren, übersteht aber das vollständige Schließen von OpenScr nicht.
 
 Deshalb steht **storage** in den Berechtigungen. Ist sie erteilt und eine Runde läuft, öffnet der nächste Start nach einem vollständigen Schließen wieder denselben Bildschirm. Namen müssen nicht neu eingetragen werden. Wurden Namen nur eingetragen und das Spiel noch nicht gestartet, öffnet sich die Lobby mit genau diesen Namen. Fehlt die Bridge oder die Berechtigung (zum Beispiel im Browser), läuft das Spiel weiter. Der Stand wird dann nicht über einen vollständigen Neustart hinweg wiederhergestellt.
 
@@ -81,7 +81,7 @@ Im Speicher liegen nur Spieldaten dieser Runde. Keine Spotify-Client-ID, kein Se
 Diese Abläufe sind gegenüber der eingefrorenen Rohfassung neu. Der Branch `roh` (Commit `6437c5dd`, Screenshots unter `roh-screenshots/`) bleibt unverändert und ist die Vergleichsbasis:
 
 - Bricht Spotify mitten im Spiel ab, gibt es **Verbinden**, ohne die Runde abzubrechen oder den Punktestand zu verwerfen.
-- Schließt sich die App mitten im Spiel oder stürzt sie ab, stellt der nächste Start den kompletten Spielstand aus dem EveryApp-Speicher wieder her und landet auf dem Bildschirm, auf dem die Runde stand. Dafür ist die Berechtigung `storage` nötig.
+- Schließt sich die App mitten im Spiel oder stürzt sie ab, stellt der nächste Start den kompletten Spielstand aus dem OpenScr-Speicher wieder her und landet auf dem Bildschirm, auf dem die Runde stand. Dafür ist die Berechtigung `storage` nötig.
 - Auf dem Endstand nach **Spiel beenden** sitzt ein Home-Icon im Kopf, im selben Icon-Stil wie das ✕ an den Namen. Die Beschriftung für Vorleseprogramme ist „Home“. Ein Tipp öffnet ohne weitere Frage die Lobby. Die Namen stehen dort automatisch weiter in der Liste. Punkte und der Stand der beendeten Runde sind gelöscht, ein neues Spiel fängt bei null an. Ein späteres vollständiges Schließen öffnet diese Lobby und nicht die beendete Runde.
 - Mitspielernamen werden gespeichert, sobald ein Name hinzugefügt, im Feld geändert oder entfernt wird, auch bevor jemand auf **Spiel starten** tippt. Nach einem vollständigen Schließen steht die Lobby schon mit diesen Namen da. Liegt ein laufendes Spiel im Speicher, landet der Start wie bisher direkt in der Runde.
 - Statt des synthetischen Pieptons liegen drei MP3s im Repo. Der Buzzer feuert beim Finger-runter: `pause` und `buzzer.mp3` starten im selben Moment, ohne auf die Bridge zu warten. Ein richtiger Tipp spielt `correct.mp3` und blendet den Song wieder ein. Ein falscher Tipp spielt `wrong.mp3` und lässt den Song danach sofort in normaler Lautstärke weiterlaufen.
@@ -105,7 +105,7 @@ Drei kurze Dateien unter `assets/sounds/`. `correct.mp3` und `wrong.mp3` stammen
 | `correct.mp3` | richtiger Tipp, danach blendet der Song ein | Correct von DRAGON-STUDIO |
 | `wrong.mp3` | falscher Tipp, danach sofort volle Lautstärke | Error/Mistake Sound Effect von Lesiakower |
 
-EveryApp lädt jede Datei des Repository von `raw.githubusercontent.com` (`FileSystem.downloadAsync`, binär). Beim Öffnen ersetzt die Laufzeit relative `src` von Audio-Elementen durch `data:audio/mpeg;base64,…`, derselbe Weg wie bei anderen Medien (`mimeForPath` kennt `mp3`). Die MP3s bleiben deshalb echte Dateien und stecken nicht als Base64 im Quelltext.
+OpenScr lädt jede Datei des Repository von `raw.githubusercontent.com` (`FileSystem.downloadAsync`, binär). Beim Öffnen ersetzt die Laufzeit relative `src` von Audio-Elementen durch `data:audio/mpeg;base64,…`, derselbe Weg wie bei anderen Medien (`mimeForPath` kennt `mp3`). Die MP3s bleiben deshalb echte Dateien und stecken nicht als Base64 im Quelltext.
 
 Alle drei Effekte laufen mit der einen Lautstärke `SFX_VOLUME` (0.4). Die Spotify-Lautstärke des Songs bleibt davon unberührt. Der Wert steht nicht im gespeicherten Spielstand.
 
@@ -113,28 +113,29 @@ Alle drei Effekte laufen mit der einen Lautstärke `SFX_VOLUME` (0.4). Die Spoti
 
 Der Song bleibt in der Spotify-App. Die Effekte spielt das WebView. Nur ein gültiger Buzzer, ein gültiges Ja und ein gültiges Nein lösen einen Effekt aus. „Versehentlich gedrückt“, Überspringen und das Songende bleiben ohne diese Töne. Lässt sich eine Datei nicht abspielen, läuft Pause und Wertung weiter, ohne Fehlerhinweis.
 
-Einblenden nach einem richtigen Tipp heißt: Spotify-Lautstärke auf 0, Wiedergabe an der Pausestelle, dann in etwa 0,9 Sekunden zurück auf den vorherigen Wert (0…1). Dafür braucht die Bridge `setVolume` und optional `getVolume`. Die aktuelle EveryApp-Bridge hat `pause` und `resume`, aber keine Lautstärke. Dann startet der Song nach `correct.mp3` sofort in der bisherigen Lautstärke. Der Stopp selbst ist immer nur `pause()`, ohne vorherige Rampe. Nach einem falschen Tipp wird die Lautstärke nie geändert.
+Einblenden nach einem richtigen Tipp heißt: Spotify-Lautstärke auf 0, Wiedergabe an der Pausestelle, dann in etwa 0,9 Sekunden zurück auf den vorherigen Wert (0…1). Dafür braucht die Bridge `setVolume` und optional `getVolume`. Die aktuelle OpenScr-Bridge hat `pause` und `resume`, aber keine Lautstärke. Dann startet der Song nach `correct.mp3` sofort in der bisherigen Lautstärke. Der Stopp selbst ist immer nur `pause()`, ohne vorherige Rampe. Nach einem falschen Tipp wird die Lautstärke nie geändert.
 
 ## Bildschirm
 
-Ab der Lobby beziehungsweise ab **Spiel starten** bis zum Spielende soll das Handy nicht von allein dunkel werden: in der Lobby, bei der Namenswahl, auf der Wertung, zwischen den Runden und auf dem Buzzer. Nach dem Spielende und über Home wird das wieder losgelassen. Die EveryApp-Bridge hat dafür keine Funktion. Die Mini-App macht es selbst.
+Ab der Lobby beziehungsweise ab **Spiel starten** bis zum Spielende soll das Handy nicht von allein dunkel werden: in der Lobby, bei der Namenswahl, auf der Wertung, zwischen den Runden und auf dem Buzzer. Nach dem Spielende und über Home wird das wieder losgelassen. Die OpenScr-Bridge hat dafür keine Funktion. SongratenScrapp macht es selbst.
 
 Zuerst `navigator.wakeLock.request('screen')`. Wird die Seite verdeckt und wieder sichtbar, wird der Lock neu geholt, ebenso nach dem Wiederherstellen eines Spielstands. Fehlt die Wake-Lock-API, passiert dabei nichts. Lehnt der Lock ab oder fehlt er, startet ein Tippen (Name, Spiel starten, Buzzer oder eine andere Taste) ein winziges, stummes, gelooptes Video ohne Tonspur. Das ist der NoSleep-Weg fürs Android-WebView. Lautstärke 0, `muted`, `playsinline`. Spotify und die drei Effekte bleiben unangetastet.
 
 Auf dem Endstand und nach Home werden Lock und Video losgelassen. Ein Tipp in der Lobby holt beides wieder. Unten steht klein, welcher Weg hält: `Wach: Wake Lock`, `Wach: Video` oder `Wach: wartet`. Das steht nicht in `songraten.game.v1`.
 
-EveryApp setzt das HTML ohne `baseUrl`, also ohne sichere Origin. Die Wake Lock API gibt es nur im Secure Context. Im EveryApp-WebView sollte deshalb das stumme Video greifen. Unter https oder localhost nimmt der Browser den Wake Lock.
+OpenScr setzt das HTML ohne `baseUrl`, also ohne sichere Origin. Die Wake Lock API gibt es nur im Secure Context. Im OpenScr-WebView sollte deshalb das stumme Video greifen. Unter https oder localhost nimmt der Browser den Wake Lock.
 
 ## Im Browser
 
-Ohne EveryApp-Bridge erscheint ein kurzer Hinweis. Das Spiel startet dort nicht und bricht nicht ab. Ton gibt es nur in EveryApp mit Spotify. Den Spielstand nach dem vollständigen Schließen gibt es nur in EveryApp, nachdem die Berechtigung `storage` erteilt wurde.
+Ohne OpenScr-Bridge erscheint ein kurzer Hinweis. Das Spiel startet dort nicht und bricht nicht ab. Ton gibt es nur in OpenScr mit Spotify. Den Spielstand nach dem vollständigen Schließen gibt es nur in OpenScr, nachdem die Berechtigung `storage` erteilt wurde.
 
 ## Aufbau
 
 ```
-evryGuessTheSong/
+SongratenScrapp/
 ├── assets/sounds/   # buzzer.mp3, correct.mp3, wrong.mp3
-├── everyapp.json    # Manifest
+├── openscr.json     # Manifest (OpenScr)
+├── everyapp.json    # dasselbe Manifest, Fallback für ältere Builds
 ├── index.html       # App, CSS und JavaScript inline
 └── README.md
 ```

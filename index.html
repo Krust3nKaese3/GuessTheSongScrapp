@@ -219,7 +219,7 @@
   <video id="wakeVideo" src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAM3bW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAAfQAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAmF0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAAfQAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAH0AAAAAAABAAAAAAHZbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAAAoAAAAFABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABhG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAURzdGJsAAAAuHN0c2QAAAAAAAAAAQAAAKhhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFUxhdmM2MC4zMS4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAALmF2Y0MBQsAe/+EAFmdCwB7ZHsBEAAADAAQAAAMAUDxYuSABAAVoy4PEyAAAABBwYXNwAAAAAQAAAAEAAAAUYnRydAAAAAAAACsQAAArEAAAABhzdHRzAAAAAAAAAAEAAAAFAAAEAAAAABRzdHNzAAAAAAAAAAEAAAABAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAAFAAAAAQAAAChzdHN6AAAAAAAAAAAAAAAFAAAChwAAAAsAAAALAAAACgAAAAoAAAAUc3RjbwAAAAAAAAABAAADZwAAAGJ1ZHRhAAAAWm1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAAAAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNjAuMTYuMTAwAAAACGZyZWUAAAK5bWRhdAAAAnMGBf//b9xF6b3m2Ui3lizYINkj7u94MjY0IC0gY29yZSAxNjQgcjMxMDggMzFlMTlmOSAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMjMgLSBodHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0wIHJlZj0zIGRlYmxvY2s9MTotMzotMyBhbmFseXNlPTB4MToweDExMSBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9Mi4wMDowLjcwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MSA4eDhkY3Q9MCBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tNCB0aHJlYWRzPTEgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbmVkX2ludHJhPTAgYmZyYW1lcz0wIHdlaWdodHA9MCBrZXlpbnQ9MjUwIGtleWludF9taW49MTAgc2NlbmVjdXQ9NDAgaW50cmFfcmVmcmVzaD0wIHJjX2xvb2thaGVhZD00MCByYz1jcmYgbWJ0cmVlPTEgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEuNDAgYXE9MToxLjIwAIAAAAAMZYiEBLOcmKAAOKOAAAAAB0GaOAlnOoAAAAAHQZpUAlnOoAAAAAZBmmARznUAAAAGQZqAEM51" muted playsinline webkit-playsinline loop preload="auto" disablepictureinpicture aria-hidden="true"></video>
   <p id="wakeDebug" class="wake-debug" hidden></p>
   <script>
-    const NO_CLIENT_ID = 'Keine Spotify Client ID hinterlegt. Bitte in den EveryApp-Einstellungen eintragen.';
+    const NO_CLIENT_ID = 'Keine Spotify Client ID hinterlegt. Bitte in den OpenScr-Einstellungen eintragen.';
     const NOT_INSTALLED = 'Spotify ist nicht installiert. Bitte die Spotify-App aus dem Play Store installieren und dich dort anmelden.';
     const NOT_PREMIUM = 'Dieser Spotify-Account hat kein Premium. Einen bestimmten Song abspielen geht nur mit Premium.';
     const ALREADY_STARTED = 'Song war schon an.';
@@ -279,7 +279,7 @@
     const app = document.getElementById('app');
 
     function bridge() {
-      return window.EveryAppBridge || null;
+      return window.OpenScrBridge || window.EveryAppBridge || null;
     }
 
     function spotifyApi() {
@@ -303,11 +303,11 @@
     function presentError(error) {
       const text = errText(error);
       if (text.indexOf(NO_CLIENT_ID) !== -1) {
-        state.error = NO_CLIENT_ID + ' Trag sie in EveryApp auf dem Startbildschirm unter Spotify ein. Dieses Spiel speichert keine Client ID.';
+        state.error = NO_CLIENT_ID + ' Trag sie in OpenScr auf dem Startbildschirm unter Spotify ein. Dieses Spiel speichert keine Client ID.';
         return;
       }
       if (text.indexOf('nächsten Build') !== -1 || text.indexOf('natives Modul') !== -1) {
-        state.error = text + ' Bitte den SrvEveryApp- oder EveryApp-Build verwenden, der die Spotify-Bridge bereits enthält.';
+        state.error = text + ' Bitte den SrvOpenScr- oder OpenScr-Build verwenden, der die Spotify-Bridge bereits enthält.';
         return;
       }
       state.error = text;
@@ -319,9 +319,9 @@
       const api = spotifyApi();
       if (api) return api;
       if (!bridge()) {
-        throw new Error('Song raten braucht EveryApp und Spotify. Im normalen Browser gibt es keine Spotify-Bridge und keinen Ton.');
+        throw new Error('Song raten braucht OpenScr und Spotify. Im normalen Browser gibt es keine Spotify-Bridge und keinen Ton.');
       }
-      throw new Error('Diese EveryApp-Version enthält die Spotify-Bridge nicht. Bitte den SrvEveryApp- oder EveryApp-Build verwenden, der sie bereits enthält.');
+      throw new Error('Diese OpenScr-Version enthält die Spotify-Bridge nicht. Bitte den SrvOpenScr- oder OpenScr-Build verwenden, der sie bereits enthält.');
     }
 
     async function requireClient() {
@@ -1280,7 +1280,7 @@
       try { await api.setVolume(target); } catch (error) {}
     }
 
-    // Pause and resume on the current EveryApp bridge are hard cuts. A fade-in
+    // Pause and resume on the current OpenScr bridge are hard cuts. A fade-in
     // only happens when that bridge also exposes setVolume (0..1).
     async function resumeFadeIn() {
       const api = requireApi();
@@ -1891,8 +1891,8 @@
 
     function sourceSentence(client) {
       if (!client || client.source === 'none' || !client.clientId) return NO_CLIENT_ID;
-      if (client.source === 'settings') return 'Die Client-ID aus den EveryApp-Einstellungen wird verwendet.';
-      if (client.source === 'bridge') return 'Die Client-ID kommt aus der Bridge. Eingetragen wird sie in EveryApp, nicht in diesem Spiel.';
+      if (client.source === 'settings') return 'Die Client-ID aus den OpenScr-Einstellungen wird verwendet.';
+      if (client.source === 'bridge') return 'Die Client-ID kommt aus der Bridge. Eingetragen wird sie in OpenScr, nicht in diesem Spiel.';
       if (client.source === 'prefill') return 'Die Client-ID kommt aus dem App-Build.';
       return 'Client-ID ist hinterlegt.';
     }
@@ -1900,10 +1900,10 @@
     function spotifyCardHtml() {
       const api = spotifyApi();
       if (!bridge()) {
-        return `<section class="banner warn">Song raten braucht EveryApp und Spotify. Im normalen Browser gibt es keinen Ton. Öffne das Spiel in der EveryApp (Build mit Spotify-Bridge) und verbinde Spotify Premium.</section>`;
+        return `<section class="banner warn">Song raten braucht OpenScr und Spotify. Im normalen Browser gibt es keinen Ton. Öffne das Spiel in OpenScr (Build mit Spotify-Bridge) und verbinde Spotify Premium.</section>`;
       }
       if (!api) {
-        return `<section class="banner warn">Diese EveryApp-Version enthält die Spotify-Bridge nicht. Bitte den SrvEveryApp- oder EveryApp-Build verwenden, der sie bereits enthält.</section>`;
+        return `<section class="banner warn">Diese OpenScr-Version enthält die Spotify-Bridge nicht. Bitte den SrvOpenScr- oder OpenScr-Build verwenden, der sie bereits enthält.</section>`;
       }
       const availability = state.spotify.availability;
       const premium = !availability ? 'noch nicht geprüft' : availability.premium === null || availability.premium === undefined ? 'noch nicht bekannt' : availability.premium ? 'ja' : 'nein';
@@ -1919,7 +1919,7 @@
       return `<section class="card stack">
         <h2>Spotify</h2>
         <p class="${missing ? 'banner error' : 'hint'}">${esc(sourceSentence(state.spotify.client))}</p>
-        ${missing ? '<p class="hint">Öffne EveryApp → Spotify auf dem Startbildschirm, trag die Client ID ein und speichere. Danach hier auf Erneut prüfen tippen.</p>' : ''}
+        ${missing ? '<p class="hint">Öffne OpenScr → Spotify auf dem Startbildschirm, trag die Client ID ein und speichere. Danach hier auf Erneut prüfen tippen.</p>' : ''}
         <p class="hint">${lines.map(esc).join('<br>')}</p>
         ${premiumWarn}
         ${!availability || availability.installed ? '' : `<p class="banner error">${esc(NOT_INSTALLED)}</p>`}
@@ -2243,7 +2243,7 @@
         if (raw == null) localStorage.removeItem(key);
         else localStorage.setItem(key, String(raw));
       } catch (error) {
-        // localStorage kann voll oder gesperrt sein. Der EveryApp-Speicher bleibt die Quelle.
+        // localStorage kann voll oder gesperrt sein. Der OpenScr-Speicher bleibt die Quelle.
       }
     }
 
@@ -2616,7 +2616,7 @@
       if (action === 'logout') withBusy(async () => {
         await requireApi().logout();
         await loadSpotifyStatus();
-        state.info = 'Bei Spotify abgemeldet. Die Client-ID in den EveryApp-Einstellungen bleibt erhalten.';
+        state.info = 'Bei Spotify abgemeldet. Die Client-ID in den OpenScr-Einstellungen bleibt erhalten.';
       });
       if (action === 'select-dj') selectDj(Number(button.dataset.id));
       if (action === 'back-name') backName();
