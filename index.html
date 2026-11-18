@@ -1081,7 +1081,6 @@
 
     const FADE_IN_MS = 900;
     const FADE_IN_STEPS = 9;
-    const SFX_CAP_MS = 4000;
     const SFX_VOLUME = 0.4;
     ['sfx-buzzer', 'sfx-correct', 'sfx-wrong'].forEach((id) => {
       const el = document.getElementById(id);
@@ -1124,29 +1123,18 @@
       stopSfx();
       const el = document.getElementById('sfx-' + name);
       if (!el) return Promise.resolve();
-      return new Promise((resolve) => {
-        let settled = false;
-        let cap = 0;
-        const finish = () => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(cap);
-          el.removeEventListener('ended', finish);
-          el.removeEventListener('error', finish);
-          if (activeSfx && activeSfx.cancel === finish) activeSfx = null;
-          resolve();
-        };
-        activeSfx = { cancel: finish };
-        el.addEventListener('ended', finish);
-        el.addEventListener('error', finish);
-        cap = setTimeout(finish, SFX_CAP_MS);
-        try { el.currentTime = 0; } catch (error) {}
-        el.volume = SFX_VOLUME;
-        const played = el.play();
-        if (played && typeof played.then === 'function') {
-          played.then(function () {}, function () { finish(); });
+      try { el.currentTime = 0; } catch (error) {}
+      el.volume = SFX_VOLUME;
+      activeSfx = {
+        cancel() {
+          try { el.pause(); } catch (error) {}
         }
-      });
+      };
+      const played = el.play();
+      if (played && typeof played.then === 'function') {
+        return played.then(function () {}, function () {});
+      }
+      return Promise.resolve();
     }
 
     let audioCtx = null;
@@ -1645,7 +1633,7 @@
         render();
         enqueueTransport(async () => {
           if (epoch !== transportEpoch) return;
-          await playSfx('correct');
+          playSfx('correct');
           if (epoch !== transportEpoch || state.phase !== 'reveal' || state.round !== round) return;
           try {
             await resumeFadeIn();
@@ -1667,7 +1655,7 @@
       enqueueTransport(async () => {
         try {
           if (epoch !== transportEpoch) return;
-          await playSfx('wrong');
+          playSfx('wrong');
           if (epoch !== transportEpoch || state.phase !== 'playing' || state.round !== round) return;
           startPoll();
           try {
