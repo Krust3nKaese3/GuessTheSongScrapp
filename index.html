@@ -1123,18 +1123,31 @@
       stopSfx();
       const el = document.getElementById('sfx-' + name);
       if (!el) return Promise.resolve();
-      try { el.currentTime = 0; } catch (error) {}
-      el.volume = SFX_VOLUME;
-      activeSfx = {
-        cancel() {
-          try { el.pause(); } catch (error) {}
+      return new Promise((resolve) => {
+        let settled = false;
+        let cap = 0;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(cap);
+          el.removeEventListener('ended', finish);
+          el.removeEventListener('error', finish);
+          if (activeSfx && activeSfx.cancel === finish) activeSfx = null;
+          resolve();
+        };
+        activeSfx = { cancel: finish };
+        el.addEventListener('ended', finish);
+        el.addEventListener('error', finish);
+        const known = Number(el.duration);
+        const capMs = known > 0 && known < 60 ? Math.ceil(known * 1000) + 150 : 1400;
+        cap = setTimeout(finish, capMs);
+        try { el.currentTime = 0; } catch (error) {}
+        el.volume = SFX_VOLUME;
+        const played = el.play();
+        if (played && typeof played.then === 'function') {
+          played.then(function () {}, function () { finish(); });
         }
-      };
-      const played = el.play();
-      if (played && typeof played.then === 'function') {
-        return played.then(function () {}, function () {});
-      }
-      return Promise.resolve();
+      });
     }
 
     let audioCtx = null;
@@ -1633,7 +1646,7 @@
         render();
         enqueueTransport(async () => {
           if (epoch !== transportEpoch) return;
-          playSfx('correct');
+          await playSfx('correct');
           if (epoch !== transportEpoch || state.phase !== 'reveal' || state.round !== round) return;
           try {
             await resumeFadeIn();
@@ -1655,7 +1668,7 @@
       enqueueTransport(async () => {
         try {
           if (epoch !== transportEpoch) return;
-          playSfx('wrong');
+          await playSfx('wrong');
           if (epoch !== transportEpoch || state.phase !== 'playing' || state.round !== round) return;
           startPoll();
           try {
