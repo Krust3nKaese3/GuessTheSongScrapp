@@ -213,6 +213,18 @@
       color: rgba(255, 248, 244, 0.62);
       pointer-events: none;
     }
+    .mp-mark { margin: 2px 0 0; font-size: 13px; }
+    .player-actions { display: flex; gap: 8px; flex: 0 0 auto; }
+    .marks { display: flex; justify-content: center; align-items: center; gap: 16px; }
+    .mark {
+      width: min(42vw, 200px);
+      height: min(42vw, 200px);
+      border: 0;
+      border-radius: 32px;
+      font-size: 92px;
+      line-height: 1;
+      font-weight: 900;
+    }
   </style>
 </head>
 <body>
@@ -224,6 +236,7 @@
   <p id="wakeDebug" class="wake-debug" hidden></p>
   <script src="players.js"></script>
   <script src="stats.js"></script>
+  <script src="multiplayer.js"></script>
   <script>
     const NO_CLIENT_ID = 'Keine Spotify Client ID hinterlegt. Bitte in den OpenScr-Einstellungen eintragen.';
     const NOT_INSTALLED = 'Spotify ist nicht installiert. Bitte die Spotify-App aus dem Play Store installieren und dich dort anmelden.';
@@ -282,7 +295,7 @@
     const PLAYERS_KEY = 'songraten.players.v1';
     const HISTORY_KEY = 'songraten.history.v1';
     const STORAGE_TIMEOUT_MS = 4000;
-    const IN_GAME_PHASES = ['dj', 'search', 'playing', 'guess', 'endedAsk', 'endedWho', 'reveal'];
+    const IN_GAME_PHASES = ['dj', 'search', 'playing', 'guess', 'mark', 'endedAsk', 'endedWho', 'reveal'];
     const SAVE_FIELDS = [
       'phase', 'players', 'nextId', 'djId', 'round', 'picked', 'results',
       'draftName', 'draftQuery', 'guesserId', 'error', 'info', 'notice',
@@ -300,6 +313,39 @@
     let historyDirty = false;
     let historyEpoch = 0;
     let labels = new Map();
+
+    const net = {
+      role: '',
+      selfId: '',
+      roomCode: '',
+      qrPayload: '',
+      devices: [],
+      panel: false,
+      rooms: [],
+      detail: '',
+      hostAway: false,
+      buzzDevice: '',
+      searcherId: '',
+      localLock: false,
+      hostPaused: false,
+      confirmJudge: '',
+      undo: null,
+      pickedLocal: false,
+      locked: [],
+      seen: [],
+      directory: [],
+      clock: null,
+      buzz: null,
+      buzzSeq: 0,
+      pingN: 0,
+      searchWait: 0,
+      recWait: 0,
+      replyTo: '',
+      renamingId: 0,
+      pingTimer: 0,
+      buzzTimer: 0,
+      bound: false
+    };
 
     const app = document.getElementById('app');
 
@@ -910,6 +956,23 @@
     }
 
     async function loadRecommendations() {
+      if (isGuest()) {
+        if (state.recsLoading || state.recsReady) return;
+        if (!state.songsStarted) {
+          state.recommendations = [];
+          state.recsNote = 'Empfehlungen erst nach dem ersten Song gehen.';
+          render();
+          return;
+        }
+        net.recWait += 1;
+        state.recsLoading = true;
+        state.recsNote = '';
+        state.recommendations = [];
+        state.error = '';
+        render();
+        sendHost({ t: 'recs', id: net.recWait });
+        return;
+      }
       if (state.recsLoading || state.recsReady) return;
       if (!state.startedUris.length) {
         state.recommendations = [];
@@ -1062,6 +1125,8 @@
       stopPoll();
       state.phase = 'endedAsk';
       state.notice = '';
+      net.undo = null;
+      if (isHost()) publish();
       render();
       try {
         await requireApi().pause();
@@ -1094,14 +1159,14 @@
     }
 
     function buzzHaptic() {
+      if (isGuest()) return;
       const api = bridge();
-      if (!api || !api.vibration || !api.vibration.vibrate) return;
+      const vibrate = api && api.vibration && api.vibration.vibrate;
+      if (typeof vibrate !== 'function') return;
       try {
-        api.vibration.vibrate([20, 30, 50]);
-      } catch (error) {
-        presentError('Vibration fehlgeschlagen: ' + errText(error));
-        paintBanners();
-      }
+        const pending = vibrate.call(api.vibration, [20, 30, 50]);
+        if (pending && typeof pending.then === 'function') pending.then(function () {}, function () {});
+      } catch (error) {}
     }
 
     const FADE_IN_MS = 900;
@@ -1109,7 +1174,8 @@
     const SFX_VOLUME = 0.4;
     ['sfx-buzzer', 'sfx-correct', 'sfx-wrong'].forEach((id) => {
       const el = document.getElementById(id);
-      if (el) el.volume = SFX_VOLUME;
+      if (!el) return;
+      try { el.volume = SFX_VOLUME; } catch (error) {}
     });
 
     let transportChain = Promise.resolve();
@@ -1145,6 +1211,7 @@
     }
 
     function playSfx(name) {
+      if (isGuest()) return Promise.resolve();
       stopSfx();
       const el = document.getElementById('sfx-' + name);
       if (!el) return Promise.resolve();
@@ -1192,6 +1259,7 @@
     }
 
     function unlockBuzzer() {
+      if (isGuest()) return;
       const ctx = audioContext();
       if (ctx && ctx.state === 'suspended') {
         try { ctx.resume(); } catch (error) {}
@@ -1243,6 +1311,7 @@
     }
 
     function primeBuzzer() {
+      if (isGuest()) return;
       const el = document.getElementById('sfx-buzzer');
       if (!el) return;
       decodeBuzzerFrom(el.currentSrc || el.src || '');
@@ -1363,6 +1432,19 @@
       return globalThis.OpenScrStats || null;
     }
 
+    function mpLogic() {
+      return globalThis.OpenScrMultiplayer || null;
+    }
+
+    function isHost() { return net.role === 'host'; }
+    function isGuest() { return net.role === 'guest'; }
+
+    function browserGuestShell() {
+      const api = bridge();
+      if (!api || !api.multiplayer || api.spotify) return false;
+      return !isHost();
+    }
+
     function splitLegacy(name) {
       const clean = String(name || '').trim().replace(/\s+/g, ' ');
       if (!clean) return { first: '', last: '' };
@@ -1467,12 +1549,39 @@
       if (last) state.draftLast = last.value;
     }
 
+    function directorySource() {
+      return isGuest() ? net.directory : registry;
+    }
+
+    function rejectRequest(text) {
+      const target = net.replyTo;
+      if (target && target !== net.selfId && isHost()) {
+        sendTo(target, { t: 'no', text: text });
+        return;
+      }
+      presentError(text);
+      render();
+    }
+
     function addSavedPlayer(pid) {
-      const record = registry.find((player) => player.id === pid);
+      if (isGuest()) {
+        sendHost({ t: 'add', pid: pid });
+        state.draftName = '';
+        state.creating = false;
+        state.error = '';
+        render();
+        return Promise.resolve();
+      }
+      const record = directorySource().find((player) => player.id === pid);
       if (!record) return Promise.resolve();
       if (state.players.some((player) => player.pid === record.id)) {
-        presentError('Diese Person ist schon dabei.');
-        render();
+        rejectRequest('Diese Person ist schon dabei.');
+        return Promise.resolve();
+      }
+      const logic = mpLogic();
+      const names = playerApi();
+      if (net.role && logic && names && logic.duplicateName(state.players, record.first, record.last, names.normalize, null)) {
+        rejectRequest('Diesen Namen gibt es schon.');
         return Promise.resolve();
       }
       state.players.push({
@@ -1490,6 +1599,7 @@
       state.error = '';
       lobbyDirty = true;
       const saved = persistLobby();
+      if (isHost()) publish();
       render();
       return saved;
     }
@@ -1503,7 +1613,7 @@
         render();
         return;
       }
-      const hits = api.search(registry, query, rosterPids());
+      const hits = api.search(directorySource(), query, rosterPids());
       if (hits.length === 1) {
         addSavedPlayer(hits[0].id);
         return;
@@ -1524,11 +1634,11 @@
       render();
     }
 
-    async function createAndAdd() {
-      readNamingFields();
+    async function createAndAdd(forced) {
+      if (!forced) readNamingFields();
       const api = playerApi();
-      const first = (state.draftFirst || '').trim();
-      const last = (state.draftLast || '').trim();
+      const first = String(forced ? forced.first : (state.draftFirst || '')).trim();
+      const last = String(forced ? forced.last : (state.draftLast || '')).trim();
       if (!api) {
         presentError('Die Spielerliste konnte nicht geladen werden.');
         render();
@@ -1541,6 +1651,14 @@
       }
       if (first.length > 40 || last.length > 40) {
         presentError('Vor- und Nachname dürfen höchstens 40 Zeichen haben.');
+        render();
+        return;
+      }
+      if (isGuest()) {
+        sendHost({ t: 'create', first: first, last: last });
+        state.creating = false;
+        state.draftFirst = '';
+        state.draftLast = '';
         render();
         return;
       }
@@ -1568,8 +1686,9 @@
       if (!box) return;
       const api = playerApi();
       box.replaceChildren();
-      if (!api || state.creating || state.phase !== 'setup' || state.overlay) return;
-      const hits = api.search(registry, state.draftName, rosterPids()).slice(0, 8);
+      if (!api || state.creating || state.overlay) return;
+      if (state.phase !== 'setup' && !(net.role && state.phase === 'dj')) return;
+      const hits = api.search(directorySource(), state.draftName, rosterPids()).slice(0, 8);
       if (!hits.length) {
         if ((state.draftName || '').trim()) {
           const hint = document.createElement('p');
@@ -1656,17 +1775,78 @@
     }
 
     async function removePlayer(id) {
+      if (isGuest()) {
+        sendHost({ t: 'remove', id: id });
+        return;
+      }
+      const logic = mpLogic();
+      if (net.role && logic) {
+        const block = logic.removalBlock(id, currentDjId(), state.guesserId);
+        if (block) {
+          rejectRequest(block);
+          return;
+        }
+      }
       state.players = state.players.filter((player) => player.id !== id);
       lobbyDirty = true;
       const saved = persistLobby();
+      if (isHost()) publish();
       render();
       await saved;
     }
 
-    async function startGame() {
-      if (state.players.length < 2) {
-        presentError('Mindestens zwei Personen. Sonst kann außer dem DJ niemand raten.');
+    async function renamePlayer(id, first, last) {
+      const given = String(first || '').trim();
+      const family = String(last || '').trim();
+      if (isGuest()) {
+        sendHost({ t: 'rename', id: id, first: given, last: family });
+        net.renamingId = 0;
         render();
+        return;
+      }
+      if (!given || !family) {
+        rejectRequest('Bitte Vor- und Nachname eintragen.');
+        return;
+      }
+      const logic = mpLogic();
+      const names = playerApi();
+      const player = playerById(id);
+      if (!player) return;
+      if (logic && names && logic.duplicateName(state.players, given, family, names.normalize, player.id)) {
+        rejectRequest('Diesen Namen gibt es schon.');
+        return;
+      }
+      player.first = given;
+      player.last = family;
+      player.name = (given + ' ' + family).trim();
+      if (player.pid) {
+        const saved = registry.find((item) => item.id === player.pid);
+        if (saved) {
+          saved.first = given;
+          saved.last = family;
+          playersDirty = true;
+          persistPlayers();
+        }
+      }
+      net.renamingId = 0;
+      lobbyDirty = true;
+      persistLobby();
+      if (isHost()) publish();
+      render();
+    }
+
+    async function startGame() {
+      if (isGuest()) {
+        sendHost({ t: 'start' });
+        return;
+      }
+      if (browserGuestShell()) {
+        presentError('Dieses Gerät wartet auf den Raum. Den QR-Code zeigt OpenScr auf dem Host.');
+        render();
+        return;
+      }
+      if (state.players.length < 2) {
+        rejectRequest('Mindestens zwei Personen. Sonst kann außer dem DJ niemand raten.');
         return;
       }
       lobbyDirty = true;
@@ -1682,7 +1862,14 @@
         state.phase = 'dj';
         state.djId = null;
         state.round = null;
-        state.info = 'Wer das Handy hält, ist der DJ und sucht den Song aus.';
+        state.info = net.role
+          ? 'Jede Runde wählt ein Handy den DJ. Suchen und Los gehen auf jedem Handy, Spotify spielt nur hier.'
+          : 'Wer das Handy hält, ist der DJ und sucht den Song aus.';
+        net.buzzDevice = '';
+        net.searcherId = '';
+        net.undo = null;
+        resetBuzzTable();
+        if (isHost()) publish();
       });
     }
 
@@ -1693,6 +1880,19 @@
     }
 
     function backName() {
+      if (net.role && (state.phase === 'search' || state.phase === 'mark') && isGuest()) {
+        sendHost({ t: 'back' });
+        return;
+      }
+      if (state.phase === 'mark') {
+        state.phase = 'guess';
+        state.guesserId = null;
+        net.confirmJudge = '';
+        net.pickedLocal = false;
+        if (isHost()) publish();
+        render();
+        return;
+      }
       if (state.phase === 'search') {
         clearVisibleRecommendations();
         state.phase = 'dj';
@@ -1702,6 +1902,8 @@
         state.draftQuery = '';
         state.error = '';
         state.info = '';
+        net.searcherId = '';
+        if (isHost()) publish();
         render();
         return;
       }
@@ -1721,11 +1923,17 @@
       if (state.phase === 'endedWho') {
         if (state.guesserId) {
           state.guesserId = null;
+          net.pickedLocal = false;
           render();
+          return;
+        }
+        if (isGuest()) {
+          sendHost({ t: 'back-ended' });
           return;
         }
         state.phase = 'endedAsk';
         state.guesserId = null;
+        if (isHost()) publish();
         render();
       }
     }
@@ -1736,6 +1944,10 @@
         render();
         return;
       }
+      if (isGuest()) {
+        sendHost({ t: 'dj', id: state.djId });
+        return;
+      }
       state.picked = null;
       state.results = [];
       state.draftQuery = '';
@@ -1743,6 +1955,9 @@
       state.phase = 'search';
       state.error = '';
       state.info = 'Nur der DJ schaut auf diese Seite. Hier stehen Titel und Interpret.';
+      net.searcherId = '';
+      net.undo = null;
+      if (isHost()) publish();
       render();
     }
 
@@ -1752,6 +1967,19 @@
         presentError('Suchbegriff fehlt.');
         render();
         return;
+      }
+      if (isGuest()) {
+        net.searchWait += 1;
+        const id = net.searchWait;
+        state.busy = true;
+        state.error = '';
+        render();
+        sendHost({ t: 'search', id: id, q: query });
+        return;
+      }
+      if (isHost() && net.searcherId !== net.selfId) {
+        net.searcherId = net.selfId;
+        publish();
       }
       await withBusy(async () => {
         if (state.phase !== 'search') return;
@@ -1778,6 +2006,13 @@
     }
 
     async function los() {
+      if (isGuest()) {
+        if (state.phase !== 'search' || !state.picked) return;
+        state.busy = true;
+        render();
+        sendHost({ t: 'los', track: slimTrack(state.picked) });
+        return;
+      }
       if (state.phase !== 'search' || !state.picked || !playerById(state.djId)) return;
       if (state.spotify.availability && state.spotify.availability.premium === false) {
         presentError(NOT_PREMIUM);
@@ -1838,11 +2073,22 @@
         state.info = '';
         state.results = [];
         state.phase = 'playing';
+        net.searcherId = '';
+        net.buzzDevice = '';
+        net.localLock = false;
+        net.hostPaused = false;
+        net.undo = null;
+        resetBuzzTable();
         startPoll();
+        if (isHost()) publish();
       });
     }
 
     function buzz(fromKey) {
+      if (net.role) {
+        netBuzz(fromKey);
+        return;
+      }
       const round = state.round;
       if (!round || state.phase !== 'playing' || round.lock || state.holdingSfx) return;
       let pauseCall;
@@ -1927,6 +2173,9 @@
       state.round = null;
       state.phase = 'search';
       state.info = 'Der Song ist nicht angelaufen. Such noch einmal.';
+      net.localLock = false;
+      resetBuzzTable();
+      if (isHost()) publish();
       render();
     }
 
@@ -1934,6 +2183,17 @@
       const player = playerById(id);
       const dj = currentDjId();
       if (!player || player.id === dj) return;
+      if (net.role && state.phase === 'guess') {
+        if (String(net.buzzDevice) !== String(net.selfId)) return;
+        net.pickedLocal = true;
+        net.confirmJudge = '';
+        if (isGuest()) {
+          sendHost({ t: 'pick', id: player.id });
+          return;
+        }
+        applyPick(player.id);
+        return;
+      }
       state.guesserId = player.id;
       render();
     }
@@ -1941,7 +2201,19 @@
     async function judge(correct) {
       const round = state.round;
       const guesser = playerById(state.guesserId);
-      if (!round || !guesser || state.phase !== 'guess' || guesser.id === round.djId) return;
+      if (isGuest()) {
+        const want = correct ? 'yes' : 'no';
+        if (net.confirmJudge !== want) {
+          net.confirmJudge = want;
+          render();
+          return;
+        }
+        net.confirmJudge = '';
+        sendHost({ t: 'judge', correct: Boolean(correct), id: state.guesserId });
+        return;
+      }
+      if (!round || !guesser || (state.phase !== 'guess' && state.phase !== 'mark') || guesser.id === round.djId) return;
+      if (isHost()) net.undo = captureUndo();
       if (correct) {
         guesser.score += 2;
         round.outcome = 'correct';
@@ -1954,10 +2226,14 @@
         round.pendingSec = null;
         state.phase = 'reveal';
         const epoch = beginTransportTurn();
+        if (isHost()) {
+          noteLocalScore(guesser);
+          publish({ scoredPid: guesser.pid || '' });
+        }
         render();
         enqueueTransport(async () => {
           if (epoch !== transportEpoch) return;
-          await playSfx('correct');
+          if (!isGuest()) await playSfx('correct');
           if (epoch !== transportEpoch || state.phase !== 'reveal' || state.round !== round) return;
           try {
             await resumeFadeIn();
@@ -1981,11 +2257,15 @@
       state.transportPaused = true;
       const epoch = beginTransportTurn();
       state.holdingSfx = true;
+      if (isHost()) {
+        noteLocalScore(guesser);
+        publish({ scoredPid: guesser.pid || '' });
+      }
       render();
       enqueueTransport(async () => {
         try {
           if (epoch !== transportEpoch) return;
-          await playSfx('wrong');
+          if (!isGuest()) await playSfx('wrong');
           if (epoch !== transportEpoch || state.phase !== 'playing' || state.round !== round) return;
           startPoll();
           try {
@@ -2001,6 +2281,10 @@
         } finally {
           if (epoch === transportEpoch) {
             state.holdingSfx = false;
+            net.localLock = false;
+            net.buzzDevice = '';
+            resetBuzzTable();
+            if (isHost()) publish();
             render();
           }
         }
@@ -2008,13 +2292,24 @@
     }
 
     async function resumeMistake() {
+      if (isGuest()) {
+        sendHost({ t: 'mistake' });
+        return;
+      }
       const round = state.round;
-      if (!round || state.phase !== 'guess') return;
+      if (!round || (state.phase !== 'guess' && state.phase !== 'mark')) return;
       const epoch = beginTransportTurn();
       round.lock = false;
       round.pendingSec = null;
       state.notice = 'Stopp zurückgenommen. Der Song läuft weiter, niemand bekommt Punkte.';
       state.phase = 'playing';
+      net.buzzDevice = '';
+      net.localLock = false;
+      net.pickedLocal = false;
+      net.confirmJudge = '';
+      net.undo = null;
+      resetBuzzTable();
+      if (isHost()) publish();
       render();
       startPoll();
       enqueueTransport(async () => {
@@ -2033,9 +2328,13 @@
     }
 
     async function skipSong() {
+      if (isGuest()) {
+        sendHost({ t: 'skip' });
+        return;
+      }
       const round = state.round;
       const dj = round && playerById(round.djId);
-      if (!round || !dj || state.phase !== 'playing' || round.lock || state.holdingSfx) return;
+      if (!round || !dj || state.phase !== 'playing' || round.lock || state.holdingSfx || net.localLock) return;
       round.lock = true;
       stopPoll();
       dj.score -= 3;
@@ -2043,18 +2342,29 @@
       const skipStats = statsApi();
       if (skipStats && dj.pid) logEvent(skipStats.skipEvent(dj.pid, -3));
       state.phase = 'reveal';
+      net.undo = null;
+      if (isHost()) publish();
       render();
       try { await requireApi().pause(); } catch (error) { presentError(error); paintBanners(); }
     }
 
     function endedYes() {
+      if (isGuest()) {
+        sendHost({ t: 'ended-yes' });
+        return;
+      }
       if (state.phase !== 'endedAsk') return;
       state.guesserId = null;
       state.phase = 'endedWho';
+      if (isHost()) publish();
       render();
     }
 
     function endedNo() {
+      if (isGuest()) {
+        sendHost({ t: 'ended-no' });
+        return;
+      }
       const round = state.round;
       const dj = round && playerById(round.djId);
       if (!round || !dj || state.phase !== 'endedAsk') return;
@@ -2063,10 +2373,18 @@
       const missStats = statsApi();
       if (missStats && dj.pid) logEvent(missStats.missEvent(dj.pid, -3));
       state.phase = 'reveal';
+      net.undo = null;
+      if (isHost()) publish();
       render();
     }
 
     function confirmEndedWho() {
+      if (isGuest()) {
+        if (!state.guesserId) return;
+        net.pickedLocal = true;
+        sendHost({ t: 'ended-who', id: state.guesserId });
+        return;
+      }
       const round = state.round;
       const guesser = playerById(state.guesserId);
       if (!round || !guesser || state.phase !== 'endedWho' || guesser.id === round.djId) return;
@@ -2076,10 +2394,18 @@
       const endStats = statsApi();
       if (endStats && guesser.pid) logEvent(endStats.scoreEvent(guesser.pid, true, 2, round.durationMs ? round.durationMs / 1000 : null));
       state.phase = 'reveal';
+      if (isHost()) {
+        noteLocalScore(guesser);
+        publish({ scoredPid: guesser.pid || '' });
+      }
       render();
     }
 
     function nextDj() {
+      if (isGuest()) {
+        sendHost({ t: 'next' });
+        return;
+      }
       beginTransportTurn();
       stopPoll();
       clearVisibleRecommendations();
@@ -2091,7 +2417,14 @@
       state.guesserId = null;
       state.notice = '';
       state.error = '';
-      state.info = 'Gib das Handy weiter. Die nächste Person bestätigt, dass sie DJ ist.';
+      state.info = net.role
+        ? 'Nächste Runde. Auf irgendeinem Handy den DJ wählen.'
+        : 'Gib das Handy weiter. Die nächste Person bestätigt, dass sie DJ ist.';
+      net.buzzDevice = '';
+      net.searcherId = '';
+      net.undo = null;
+      net.localLock = false;
+      if (isHost()) publish();
       render();
     }
 
@@ -2099,6 +2432,10 @@
     function cancelEnd() { state.confirmEnd = false; render(); }
 
     async function finishGame() {
+      if (isGuest()) {
+        sendHost({ t: 'end' });
+        return;
+      }
       wakeDismissed = true;
       releaseAwake();
       beginTransportTurn();
@@ -2120,10 +2457,15 @@
         if (!api) return;
         try { await api.stop(); } catch (error) { presentError(error); }
       });
+      if (isHost()) publish();
       render();
     }
 
     async function returnToLobby() {
+      if (isGuest()) {
+        sendHost({ t: 'home' });
+        return;
+      }
       wakeDismissed = true;
       releaseAwake();
       beginTransportTurn();
@@ -2151,9 +2493,170 @@
       state.transportPaused = false;
       lobbyDirty = true;
       const lobbySaved = persistLobby();
+      net.buzzDevice = '';
+      net.searcherId = '';
+      net.undo = null;
+      net.localLock = false;
+      if (isHost()) publish();
       render();
       await lobbySaved;
       await persistGame();
+    }
+
+    function listedPlayers() {
+      if (!net.role) return state.players;
+      const logic = mpLogic();
+      if (!logic) return state.players;
+      const keyOf = (player) => (player.pid ? String(player.pid) : ('id:' + player.id));
+      const keys = state.players.map(keyOf);
+      const arranged = logic.arrange(keys, net.locked, net.seen.length ? net.seen : keys);
+      net.seen = arranged.map((id) => String(id));
+      const map = new Map(state.players.map((player) => [keyOf(player), player]));
+      return arranged.map((id) => map.get(String(id))).filter(Boolean);
+    }
+
+    function noteLocalScore(player) {
+      if (!net.pickedLocal || !player || !player.pid) return;
+      const logic = mpLogic();
+      if (!logic) return;
+      net.locked = logic.lockIn(net.locked, player.pid);
+      net.pickedLocal = false;
+      saveOrder();
+    }
+
+    function playerRowHtml(player) {
+      if (net.renamingId === player.id) {
+        return `<form class="stack" data-action="rename-player">
+          <input id="renameFirst" type="text" maxlength="40" placeholder="Vorname" autocomplete="off" value="${esc(player.first || '')}" aria-label="Vorname">
+          <input id="renameLast" type="text" maxlength="40" placeholder="Nachname" autocomplete="off" value="${esc(player.last || '')}" aria-label="Nachname">
+          <button class="btn" type="submit">Speichern</button>
+          <button type="button" class="btn ghost" data-action="cancel-rename">Zurück</button>
+        </form>`;
+      }
+      const rename = net.role
+        ? `<button type="button" class="icon-btn" data-action="rename-player" data-id="${player.id}" aria-label="${esc(labelOf(player))} umbenennen">✎</button>`
+        : '';
+      return `<div class="player"><span class="player-name">${esc(labelOf(player))}</span><span class="player-actions">${rename}<button type="button" class="icon-btn" data-action="remove-player" data-id="${player.id}" aria-label="${esc(labelOf(player))} entfernen">✕</button></span></div>`;
+    }
+
+    function namesFoldHtml() {
+      if (!net.role) return '';
+      const rows = state.players.length
+        ? listedPlayers().map((player) => playerRowHtml(player)).join('')
+        : '<p class="hint">Noch niemand eingetragen.</p>';
+      return `<details class="card"><summary>Namen</summary><div class="stack">
+        <p class="hint">Die Liste liegt auf dem Host. Jedes Handy darf Namen ändern. Doppelte Namen werden abgelehnt.</p>
+        <form class="stack" data-action="add-player">
+          <input id="playerName" type="text" maxlength="80" placeholder="Name suchen" autocomplete="off" value="${esc(state.draftName)}" aria-label="Name suchen">
+        </form>
+        <div id="playerSuggestions" class="suggest"></div>
+        ${namingFormHtml()}
+        ${rows}
+      </div></details>`;
+    }
+
+    function netMarkHtml() {
+      if (!net.role) return '';
+      const away = net.hostAway ? ' · Host ist kurz weg' : '';
+      const star = isHost() ? ' ★' : '';
+      const dot = net.hostAway ? '○' : '●';
+      return `<p class="mp-mark">${dot} Raum ${esc(net.roomCode || '…')}${star}${esc(away)}</p>`;
+    }
+
+    function deviceLineHtml() {
+      if (!net.devices.length) return '';
+      const bits = net.devices.map((device) => {
+        const here = device.id === net.selfId ? 'dieses Handy' : 'Handy';
+        const star = device.host ? '★ ' : '';
+        const away = device.connected ? '' : ' (weg)';
+        return star + here + away;
+      });
+      return `<p class="hint">${esc(bits.join(' · '))}</p>`;
+    }
+
+    function multiplayerCardHtml() {
+      if (!net.panel && !net.role) return '';
+      if (!net.panel && net.role) {
+        return `<section class="card stack">
+          <p class="hint">Im Raum ${esc(net.roomCode || '')}. Handys sind keine Personen und dürfen weitergegeben werden.${isHost() ? ' Dieses Handy ist der Host ★.' : ''}</p>
+          ${deviceLineHtml()}
+          <button type="button" class="btn ghost" data-action="multiplayer">Raum</button>
+        </section>`;
+      }
+      const rooms = net.rooms.length
+        ? net.rooms.map((room) => `<button type="button" class="choice" data-action="join-room" data-room="${esc(room.id)}"><span><span class="player-name">${esc(room.hostName || 'Spiel')}</span><span class="track-meta">Raum ${esc(room.roomCode || '')} · ${esc(room.players)} von ${esc(room.maxPlayers)}</span></span></button>`).join('')
+        : '<p class="hint">Keine offenen Spiele in der Nähe. Der QR-Code zum Mitspielen kommt von OpenScr auf dem Host, auch für den Browser.</p>';
+      const canOffer = Boolean(spotifyApi());
+      const hostActions = isHost()
+        ? `<p class="hint">Raum ${esc(net.roomCode)}. OpenScr zeigt den QR-Code fürs WLAN und fürs Spiel. Dieses Spiel zeichnet keinen Code.</p>
+           <button type="button" class="btn" data-action="show-qr">QR-Code zeigen</button>
+           <button type="button" class="btn ghost" data-action="end-room">Raum beenden</button>`
+        : (canOffer ? `<button type="button" class="btn" data-action="host-room" ${state.busy ? 'disabled' : ''}>Spiel anbieten</button>` : '<p class="hint">Nur das Host-Handy mit Spotify bietet das Spiel an.</p>');
+      const scan = browserGuestShell() ? '' : '<button type="button" class="btn secondary" data-action="join-qr">Per QR beitreten</button>';
+      const guestActions = isGuest()
+        ? '<button type="button" class="btn ghost" data-action="leave-room">Raum verlassen</button>'
+        : `${scan}<div class="stack">${rooms}</div>`;
+      return `<section class="card stack">
+        <h2>Multiplayer</h2>
+        <p class="hint">Gleiches WLAN oder Hotspot. Spotify und alle Töne laufen nur auf dem Host. Einzelspiel bleibt über Spiel starten.</p>
+        ${net.detail ? `<div class="banner warn">${esc(net.detail)}</div>` : ''}
+        ${deviceLineHtml()}
+        ${hostActions}
+        ${isHost() ? '' : guestActions}
+        <button type="button" class="btn ghost" data-action="close-multi">Schließen</button>
+      </section>`;
+    }
+
+    function renderSearchWait() {
+      const dj = playerById(state.djId);
+      return `${headerHtml()}<div class="stack">
+        ${bannersHtml()}
+        ${scoreboardHtml()}
+        <section class="stage">
+          <p class="eyebrow">DJ ${esc(dj ? labelOf(dj) : '')}</p>
+          <h2>DJ sucht</h2>
+          <p class="lead">Titel, Cover und Empfehlungen bleiben auf dem suchenden Handy.</p>
+          <button type="button" class="btn" data-action="claim-search">Hier suchen</button>
+          <button type="button" class="btn ghost" data-action="back-name">Zurück</button>
+        </section>
+      </div>`;
+    }
+
+    function renderGuessWait() {
+      return `${headerHtml()}<div class="stack">
+        ${bannersHtml()}
+        ${scoreboardHtml()}
+        <section class="stack">
+          <h2>Wer hat geraten?</h2>
+          <p class="lead">Das schnellste Handy wählt den Namen.</p>
+          <button type="button" class="btn ghost" data-action="mistake">Versehentlich gedrückt</button>
+        </section>
+      </div>`;
+    }
+
+    function renderMarks() {
+      const ask = isGuest() && net.confirmJudge;
+      const question = net.confirmJudge === 'no' ? 'Falsch werten?' : 'Richtig werten?';
+      return `${headerHtml()}<div class="stack">
+        ${bannersHtml()}
+        ${scoreboardHtml()}
+        <section class="stage">
+          ${ask ? `<p class="lead">${question}</p>
+            <button type="button" class="btn" data-action="${net.confirmJudge === 'no' ? 'judge-no' : 'judge-yes'}">Ja</button>
+            <button type="button" class="btn ghost" data-action="judge-cancel">Zurück</button>`
+            : `<div class="marks">
+                <button type="button" class="mark good" data-action="judge-yes" aria-label="Richtig">✓</button>
+                <button type="button" class="mark bad" data-action="judge-no" aria-label="Falsch">✗</button>
+              </div>`}
+          <button type="button" class="btn ghost" data-action="back-name">Zurück</button>
+          <button type="button" class="btn ghost" data-action="mistake">Versehentlich gedrückt</button>
+        </section>
+      </div>`;
+    }
+
+    function undoHtml() {
+      if (!isHost() || !net.undo) return '';
+      return '<button type="button" class="btn ghost" data-action="undo-judge">Zurück</button>';
     }
 
     function shownError() {
@@ -2170,7 +2673,7 @@
     }
 
     function reconnectHtml() {
-      if (!spotifyDropped()) return '';
+      if (isGuest() || !spotifyDropped()) return '';
       return `<div id="spotifyReconnect" class="banner warn stack">
         <p>Spotify ist nicht verbunden. Die Runde bleibt offen.</p>
         <button type="button" class="btn" data-action="reconnect" ${state.busy ? 'disabled' : ''}>Verbinden</button>
@@ -2179,7 +2682,7 @@
 
     function scoreboardHtml() {
       const dj = currentDjId();
-      return `<div class="scores" aria-label="Punktestand">${state.players.map((player) => `
+      return `<div class="scores" aria-label="Punktestand">${listedPlayers().map((player) => `
         <span class="chip${player.id === dj ? ' is-dj' : ''}">
           <span class="chip-name">${esc(labelOf(player))}</span>
           <span class="chip-score">${formatScore(player.score)}</span>
@@ -2200,6 +2703,7 @@
         <div>
           <p class="eyebrow">Partyspiel</p>
           <h1>Song raten</h1>
+          ${netMarkHtml()}
         </div>
         ${corner}
       </header>`;
@@ -2227,6 +2731,9 @@
 
     function spotifyCardHtml() {
       const api = spotifyApi();
+      if (browserGuestShell()) {
+        return `<section class="banner info">Dieses Gerät spielt im Browser mit. Spotify, Speicher und Töne bleiben auf dem Host.</section>`;
+      }
       if (!bridge()) {
         return `<section class="banner warn">Song raten braucht OpenScr und Spotify. Im normalen Browser gibt es keinen Ton. Öffne das Spiel in OpenScr (Build mit Spotify-Bridge) und verbinde Spotify Premium.</section>`;
       }
@@ -2276,14 +2783,14 @@
 
     function renderSetup() {
       const players = state.players.length
-        ? state.players.map((player) => `<div class="player"><span class="player-name">${esc(labelOf(player))}</span><button type="button" class="icon-btn" data-action="remove-player" data-id="${player.id}" aria-label="${esc(labelOf(player))} entfernen">✕</button></div>`).join('')
+        ? listedPlayers().map((player) => playerRowHtml(player)).join('')
         : '<p class="hint">Noch niemand eingetragen.</p>';
       return `${headerHtml()}
         <div class="stack">
           ${bannersHtml()}
         ${reconnectHtml()}
-          <p class="lead">Ein Handy, eine Runde, eine Box. Alle tragen sich ein. Der DJ sucht den Song, die anderen raten. Der Ton kommt aus der Spotify-App über den Lautsprecher.</p>
-          ${spotifyCardHtml()}
+          <p class="lead">Ein Handy, eine Runde, eine Box. Alle tragen sich ein. Der DJ sucht den Song, die anderen raten. Der Ton kommt aus der Spotify-App über den Lautsprecher. Multiplayer legt dasselbe Spiel ins WLAN: Spotify bleibt auf dem Host.</p>
+          ${isGuest() ? '<section class="banner info">Spotify und alle Töne laufen nur auf dem Host.</section>' : spotifyCardHtml()}
           <section class="card stack">
             <h2>Mitspieler</h2>
             <form class="stack" data-action="add-player">
@@ -2293,6 +2800,8 @@
             ${namingFormHtml()}
             ${players}
             <button type="button" class="btn" data-action="start" ${state.busy || state.players.length < 2 ? 'disabled' : ''}>Spiel starten</button>
+            <button type="button" class="btn secondary" data-action="multiplayer">Multiplayer</button>
+            ${multiplayerCardHtml()}
             <button type="button" class="btn ghost" data-action="open-players">Gespeicherte Spieler</button>
             <p class="hint">Mindestens zwei Personen. Tippe einen gespeicherten Namen an oder leg Vor- und Nachname neu an. In der Runde steht der Vorname, bei gleichem Vornamen mit Nachnamen-Kürzel. Punkte dieser Runde gelten bis „Spiel beenden“. Die Allzeit-Statistik bleibt auf diesem Handy.</p>
           </section>
@@ -2313,7 +2822,7 @@
     }
 
     function renderDj() {
-      const choices = state.players.map((player) => `<button type="button" class="choice${player.id === state.djId ? ' selected' : ''}" data-action="select-dj" data-id="${player.id}">${esc(labelOf(player))}</button>`).join('');
+      const choices = listedPlayers().map((player) => `<button type="button" class="choice${player.id === state.djId ? ' selected' : ''}" data-action="select-dj" data-id="${player.id}">${esc(labelOf(player))}</button>`).join('');
       return `${headerHtml()}<div class="stack">
         ${bannersHtml()}
         ${reconnectHtml()}
@@ -2324,6 +2833,7 @@
           <p class="hint">Handy weitergeben. Nur die Person, die den Song aussucht, bestätigt hier ihren Namen. Falscher Name? Zurück, dann neu wählen.</p>
           ${choices}
           <button type="button" class="btn" data-action="confirm-dj" ${state.djId ? '' : 'disabled'}>Ich bin der DJ</button>
+          ${namesFoldHtml()}
         </section>
       </div>`;
     }
@@ -2345,7 +2855,7 @@
     }
 
     function renderSearch() {
-      const premiumBlocked = state.spotify.availability && state.spotify.availability.premium === false;
+      const premiumBlocked = !isGuest() && state.spotify.availability && state.spotify.availability.premium === false;
       const dj = playerById(state.djId);
       const results = state.results.map(trackButtonHtml).join('');
       const searchLocked = state.busy || state.recsLoading;
@@ -2381,21 +2891,22 @@
           <div class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
           <p class="eyebrow">DJ ${esc(dj ? labelOf(dj) : '')}</p>
           <p id="playState" class="lead" aria-live="polite">${state.transportPaused ? 'Die Wiedergabe ist pausiert. Titel und Interpret bleiben verdeckt.' : 'Der Song läuft über die Box. Titel und Interpret bleiben verdeckt.'}</p>
-          <button type="button" class="buzzer" data-action="buzz" ${state.holdingSfx ? 'disabled' : ''} aria-label="Stopp, Song anhalten">STOPP</button>
+          <button type="button" class="buzzer" data-action="buzz" ${state.holdingSfx || (net.role && net.localLock) ? 'disabled' : ''} aria-label="Stopp, Song anhalten">STOPP</button>
           <button type="button" id="resumeBtn" class="btn secondary" data-action="resume" ${state.transportPaused && !state.holdingSfx ? '' : 'hidden'}>Fortsetzen</button>
-          ${state.round && state.round.unconfirmed ? `<div id="unconfirmed" class="stack">
+          ${state.round && state.round.unconfirmed && !isGuest() ? `<div id="unconfirmed" class="stack">
             <p class="banner warn">Spotify spielt den Song noch nicht. Bitte die Box und die Verbindung prüfen. Der Titel bleibt verdeckt.</p>
             <button type="button" class="btn secondary" data-action="retry-play">Erneut von vorne starten</button>
             <button type="button" class="btn ghost" data-action="back-search">Zurück zur Suche</button>
           </div>` : ''}
         </section>
-        <button type="button" class="btn ghost" data-action="skip" ${state.holdingSfx ? 'disabled' : ''}>Überspringen (−3 für ${esc(dj ? labelOf(dj) : 'den DJ')})</button>
+        <button type="button" class="btn ghost" data-action="skip" ${state.holdingSfx || (net.role && net.localLock) ? 'disabled' : ''}>Überspringen (−3 für ${esc(dj ? labelOf(dj) : 'den DJ')})</button>
+        ${undoHtml()}
       </div>`;
     }
 
     function guessListHtml() {
       const dj = currentDjId();
-      return state.players.filter((player) => player.id !== dj).map((player) => `
+      return listedPlayers().filter((player) => player.id !== dj).map((player) => `
         <button type="button" class="choice${player.id === state.guesserId ? ' selected' : ''}" data-action="select-guesser" data-id="${player.id}">${esc(labelOf(player))}</button>
       `).join('');
     }
@@ -2411,10 +2922,10 @@
           <button type="button" class="btn ghost" data-action="back-name">Zurück</button>
           <p class="hint">Der DJ zählt nicht. Erst die Person wählen, dann Ja oder Nein. Falscher Name? Zurück, dann neu wählen.</p>
           ${guessListHtml()}
-          <div class="row">
+          ${net.role ? '<p class="hint">Ein Tipp auf den Namen gilt. Danach sehen alle nur Haken und Kreuz.</p>' : `<div class="row">
             <button type="button" class="btn good" data-action="judge-yes" ${selected ? '' : 'disabled'}>Ja, richtig</button>
             <button type="button" class="btn bad" data-action="judge-no" ${selected ? '' : 'disabled'}>Nein, falsch</button>
-          </div>
+          </div>`}
           <button type="button" class="btn ghost" data-action="mistake">Versehentlich gedrückt</button>
         </section>
       </div>`;
@@ -2469,6 +2980,7 @@
           <p class="lead">${esc(outcome)}</p>
         </section>
         <p class="hint">Bitte das Handy weitergeben. Die nächste Person schaut erst drauf, wenn sie DJ ist.</p>
+        ${undoHtml()}
         <button type="button" class="btn" data-action="next-dj">Nächsten DJ wählen</button>
       </div>`;
     }
@@ -2589,7 +3101,10 @@
         reveal: renderReveal,
         final: renderFinal
       };
-      const view = overlayView() || views[state.phase] || renderSetup;
+      let view = overlayView() || views[state.phase] || renderSetup;
+      if (!overlayView() && net.role && state.phase === 'search' && net.searcherId !== net.selfId) view = renderSearchWait;
+      if (!overlayView() && net.role && state.phase === 'guess' && net.buzzDevice !== net.selfId) view = renderGuessWait;
+      if (!overlayView() && net.role && state.phase === 'mark') view = renderMarks;
       app.innerHTML = view() + modalHtml();
       paintPlayerSuggest();
       persistGame();
@@ -2708,6 +3223,7 @@
     }
 
     function persistPlayers() {
+      if (isGuest() || browserGuestShell()) return Promise.resolve();
       if (!saveReady) return Promise.resolve();
       const touchBridge = playersReadOk || playersDirty;
       if (!touchBridge) return Promise.resolve();
@@ -2725,6 +3241,7 @@
     }
 
     function persistHistory() {
+      if (isGuest() || browserGuestShell()) return Promise.resolve();
       if (!saveReady) return Promise.resolve();
       const touchBridge = historyReadOk || historyDirty;
       if (!touchBridge) return Promise.resolve();
@@ -2744,6 +3261,7 @@
     }
 
     function persistLobby() {
+      if (isGuest()) return Promise.resolve();
       if (!saveReady) return Promise.resolve();
       const touchBridge = lobbyReadOk || lobbyDirty;
       if (!touchBridge) return Promise.resolve();
@@ -2765,6 +3283,7 @@
     }
 
     function persistGame() {
+      if (isGuest()) return Promise.resolve();
       if (!saveReady) return Promise.resolve();
       let raw;
       try {
@@ -2981,7 +3500,7 @@
       state.recsNote = asText(saved.recsNote);
       state.busy = false;
       state.phase = saved.phase;
-      const roundPhases = ['playing', 'guess', 'endedAsk', 'endedWho', 'reveal'];
+      const roundPhases = ['playing', 'guess', 'mark', 'endedAsk', 'endedWho', 'reveal'];
       if (roundPhases.indexOf(state.phase) !== -1 && !state.round) {
         state.phase = state.djId ? 'search' : 'dj';
       }
@@ -3008,7 +3527,8 @@
       document.documentElement.dataset.wake = mode;
       const el = document.getElementById('wakeDebug');
       if (!el) return;
-      const label = mode === 'screen' ? 'Wach: Wake Lock'
+      const label = mode === 'bridge' ? 'Wach: Bridge'
+        : mode === 'screen' ? 'Wach: Wake Lock'
         : mode === 'video' ? 'Wach: Video'
         : mode === 'pending' ? 'Wach: wartet'
         : '';
@@ -3033,8 +3553,52 @@
       if (lock && !lock.released) lock.release().catch(function () {});
     }
 
+    function bridgeBag(name) {
+      const api = bridge();
+      if (!api) return null;
+      try {
+        const bag = api[name];
+        return bag && typeof bag === 'object' ? bag : null;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function keepAwakeControls() {
+      const pairs = [
+        ['wake', 'enable', 'disable', false],
+        ['wake', 'acquire', 'release', false],
+        ['screen', 'keepAwake', 'release', true],
+        ['keepAwake', 'enable', 'disable', false],
+        ['keepAwake', 'acquire', 'release', false]
+      ];
+      for (let i = 0; i < pairs.length; i += 1) {
+        const bag = bridgeBag(pairs[i][0]);
+        if (bag && typeof bag[pairs[i][1]] === 'function') {
+          return { bag: bag, on: pairs[i][1], off: pairs[i][2], flag: pairs[i][3] };
+        }
+      }
+      return null;
+    }
+
+    function callKeep(bag, name, useFlag, on) {
+      if (!bag || typeof bag[name] !== 'function') return false;
+      try {
+        const result = useFlag ? bag[name](Boolean(on)) : bag[name]();
+        if (result && typeof result.then === 'function') result.then(function () {}, function () {});
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
     function releaseAwake() {
       wakeWanted = false;
+      if (bridgeHeld) {
+        const ctl = keepAwakeControls();
+        if (ctl) callKeep(ctl.bag, ctl.off, ctl.flag, false);
+        bridgeHeld = false;
+      }
       releaseScreenLock();
       pauseWakeVideo();
       setWakeDebug('off');
@@ -3067,6 +3631,19 @@
     function requestAwake(fromGesture) {
       wakeWanted = true;
       if (document.visibilityState === 'hidden') return;
+      if (!bridgeHeld) {
+        const ctl = keepAwakeControls();
+        if (ctl && callKeep(ctl.bag, ctl.on, ctl.flag, true)) {
+          bridgeHeld = true;
+          releaseScreenLock();
+          pauseWakeVideo();
+          setWakeDebug('bridge');
+          return;
+        }
+      } else {
+        setWakeDebug('bridge');
+        return;
+      }
       if (screenLock && !screenLock.released) {
         setWakeDebug('screen');
         return;
@@ -3145,6 +3722,23 @@
         wakeDismissed = false;
         requestAwake(true);
       }
+      if (action === 'multiplayer') { await openMultiplayer(); return; }
+      if (action === 'close-multi') { await closeMultiplayer(); return; }
+      if (action === 'host-room') { await offerRoom(); return; }
+      if (action === 'join-room') { await joinFoundRoom(button.dataset.room); return; }
+      if (action === 'join-qr') { await joinByQr(); return; }
+      if (action === 'show-qr') { await showRoomQr(); return; }
+      if (action === 'leave-room') { await leaveRoom(); return; }
+      if (action === 'end-room') { await endRoom(); return; }
+      if (action === 'claim-search') { claimSearch(); return; }
+      if (action === 'rename-player') {
+        net.renamingId = Number(button.dataset.id) || 0;
+        render();
+        return;
+      }
+      if (action === 'cancel-rename') { net.renamingId = 0; render(); return; }
+      if (action === 'judge-cancel') { net.confirmJudge = ''; render(); return; }
+      if (action === 'undo-judge') { undoJudgement(); return; }
       if (action === 'remove-player') await removePlayer(Number(button.dataset.id));
       if (action === 'add-saved') await addSavedPlayer(button.dataset.pid);
       if (action === 'new-player') openCreate();
@@ -3233,8 +3827,10 @@
       app.addEventListener('pointerdown', (event) => {
         const button = event.target && event.target.closest && event.target.closest('[data-action="buzz"]');
         if (!button) {
-          unlockBuzzer();
-          primeBuzzer();
+          if (!isGuest()) {
+            unlockBuzzer();
+            primeBuzzer();
+          }
           if (state.phase !== 'final') {
             const actionButton = event.target && event.target.closest && event.target.closest('[data-action]');
             const action = actionButton && actionButton.dataset.action;
@@ -3259,6 +3855,11 @@
         if (form.dataset.action === 'add-player') submitPlayerQuery();
         if (form.dataset.action === 'create-player') createAndAdd();
         if (form.dataset.action === 'search') runSearch();
+        if (form.dataset.action === 'rename-player') {
+          const first = document.getElementById('renameFirst');
+          const last = document.getElementById('renameLast');
+          renamePlayer(net.renamingId, first ? first.value : '', last ? last.value : '');
+        }
       });
       app.addEventListener('input', (event) => {
         if (event.target.id === 'playerName' || event.target.id === 'playerFirst' || event.target.id === 'playerLast' || event.target.id === 'searchQuery') {
@@ -3284,7 +3885,7 @@
 
     function subscribe() {
       const api = bridge();
-      if (!api || !api.events || !api.events.on) return;
+      if (!api || !api.spotify || !api.events || !api.events.on || isGuest()) return;
       try {
         api.events.on('spotify.player', onPlayer);
         api.events.on('spotify.error', (payload) => {
@@ -3293,6 +3894,7 @@
           else paintBanners();
         });
         api.events.on('spotify.disconnected', () => {
+          if (isGuest()) return;
           noteSpotifyDrop();
           presentError('Verbindung zu Spotify getrennt.');
           render();
@@ -3311,6 +3913,790 @@
       }
     }
 
+    let earlyPackets = [];
+
+    function mpBridge() {
+      const api = bridge();
+      return api && api.multiplayer ? api.multiplayer : null;
+    }
+
+    function resetBuzzTable() {
+      const logic = mpLogic();
+      clearTimeout(net.buzzTimer);
+      net.buzz = logic ? logic.openBuzz() : null;
+    }
+
+    function slimTrack(track) {
+      if (!track || !track.uri) return null;
+      return {
+        uri: track.uri,
+        title: track.title || '',
+        artist: track.artist || '',
+        artists: Array.isArray(track.artists) ? track.artists.slice(0, 4) : [],
+        album: track.album || '',
+        durationMs: Number(track.durationMs) || 0
+      };
+    }
+
+    function sendHost(data) {
+      const mp = mpBridge();
+      const logic = mpLogic();
+      if (!mp || !isGuest() || !logic) return;
+      const packed = logic.pack(data);
+      if (!packed) return;
+      mp.send(packed).then(function () {}, function (error) { presentError(error); render(); });
+    }
+
+    function sendTo(id, data) {
+      const mp = mpBridge();
+      const logic = mpLogic();
+      if (!mp || !id || !logic) return;
+      const packed = logic.pack(data);
+      if (!packed) return;
+      mp.send(packed, { to: id }).then(function () {}, function () {});
+    }
+
+    function cast(data) {
+      const mp = mpBridge();
+      const logic = mpLogic();
+      if (!mp || !isHost() || !logic) return;
+      const packed = logic.pack(data);
+      if (!packed) {
+        presentError('Der Spielstand passt nicht in eine Nachricht.');
+        return;
+      }
+      mp.broadcast(packed).then(function () {}, function (error) { presentError(error); });
+    }
+
+    function hostPayload(extra) {
+      const logic = mpLogic();
+      if (!logic) return null;
+      const quiet = state.phase === 'search' || state.phase === 'playing';
+      const round = state.round ? {
+        djId: state.round.djId,
+        secretTitle: state.round.secretTitle,
+        secretArtist: state.round.secretArtist,
+        lock: state.round.lock,
+        outcome: state.round.outcome,
+        outcomeWho: state.round.outcomeWho,
+        unconfirmed: state.round.unconfirmed,
+        paused: state.transportPaused
+      } : null;
+      return logic.shareState({
+        phase: state.phase,
+        players: state.players,
+        directory: registry.map((player) => ({ id: player.id, first: player.first, last: player.last })),
+        djId: state.djId,
+        guesserId: state.guesserId,
+        songsStarted: state.songsStarted,
+        notice: state.notice,
+        info: quiet ? '' : state.info,
+        error: '',
+        buzzDevice: net.buzzDevice,
+        searcherId: net.searcherId,
+        hold: state.holdingSfx,
+        scoredPid: extra && extra.scoredPid,
+        revokePid: extra && extra.revokePid,
+        round: round
+      });
+    }
+
+    function publish(extra) {
+      const payload = hostPayload(extra || null);
+      if (payload) cast(payload);
+    }
+
+    function saveOrder() {
+      const logic = mpLogic();
+      if (!logic) return;
+      const raw = JSON.stringify({
+        v: 1,
+        locked: net.locked.map((id) => String(id)),
+        seen: net.seen.map((id) => String(id))
+      });
+      writeLocalRaw(logic.ORDER_KEY, raw);
+      if (!isGuest() && !browserGuestShell()) writeBridgeRaw(logic.ORDER_KEY, raw);
+    }
+
+    async function loadOrder() {
+      const logic = mpLogic();
+      if (!logic) return;
+      let raw = null;
+      if (isGuest() || browserGuestShell() || !persistentStore()) {
+        try { raw = localStorage.getItem(logic.ORDER_KEY); } catch (error) { raw = null; }
+      } else {
+        raw = await readStored(logic.ORDER_KEY, function () {});
+      }
+      const parsed = logic.normalizeOrder(parseSaved(raw));
+      net.locked = parsed.locked;
+      net.seen = parsed.seen;
+      if (!net.clock) net.clock = logic.createClock();
+      if (!net.buzz) net.buzz = logic.openBuzz();
+    }
+
+    function applyPick(id) {
+      const player = playerById(Number(id));
+      if (!player || player.id === currentDjId()) return;
+      state.guesserId = player.id;
+      state.phase = 'mark';
+      net.confirmJudge = '';
+      publish();
+      render();
+    }
+
+    function captureUndo() {
+      return {
+        players: state.players.map((player) => ({ id: player.id, score: player.score })),
+        phase: state.phase,
+        guesserId: state.guesserId,
+        notice: state.notice,
+        round: state.round ? JSON.parse(JSON.stringify(state.round)) : null,
+        locked: net.locked.slice(),
+        positionMs: state.round ? (Number(state.round.positionMs) || 0) : 0
+      };
+    }
+
+    async function undoJudgement() {
+      const snap = net.undo;
+      if (!snap || !isHost()) return;
+      const revoked = snap.locked.length < net.locked.length ? net.locked[net.locked.length - 1] : '';
+      net.undo = null;
+      beginTransportTurn();
+      state.players.forEach((player) => {
+        const old = snap.players.find((item) => item.id === player.id);
+        if (old) player.score = old.score;
+      });
+      state.phase = 'mark';
+      state.guesserId = snap.guesserId;
+      state.notice = '';
+      state.round = snap.round;
+      state.holdingSfx = false;
+      state.transportPaused = true;
+      net.locked = snap.locked.slice();
+      net.pickedLocal = false;
+      saveOrder();
+      try {
+        const api = requireApi();
+        await api.pause();
+        if (snap.positionMs > 0 && api.seek) await api.seek(snap.positionMs);
+      } catch (error) {
+        presentError(error);
+      }
+      publish({ revokePid: revoked ? String(revoked) : '' });
+      render();
+    }
+
+    function paintDeferred(work) {
+      if (!net.finger) {
+        work();
+        return;
+      }
+      let done = false;
+      const run = () => {
+        if (done) return;
+        done = true;
+        net.finger = false;
+        work();
+      };
+      window.addEventListener('pointerup', run, { capture: true, once: true });
+      window.addEventListener('touchend', run, { capture: true, once: true });
+      setTimeout(run, 480);
+    }
+
+    function pauseForBuzz() {
+      let pauseCall;
+      try { pauseCall = requireApi().pause(); }
+      catch (error) { pauseCall = Promise.reject(error); }
+      playBuzzerImmediate();
+      buzzHaptic();
+      net.hostPaused = true;
+      pauseCall.then(function () {}, function (error) { presentError(error); });
+    }
+
+    function armDecision() {
+      const logic = mpLogic();
+      clearTimeout(net.buzzTimer);
+      const wait = logic ? logic.DECISION_MS : 60;
+      const since = net.buzz && net.buzz.since ? net.buzz.since : Date.now();
+      net.buzzTimer = setTimeout(finishDecision, Math.max(0, since + wait - Date.now()));
+    }
+
+    function noteBuzz(device, seq, at) {
+      const logic = mpLogic();
+      if (!logic) return;
+      if (!net.buzz || !net.buzz.open) net.buzz = logic.openBuzz();
+      const taken = logic.takeBuzz(net.buzz, { device: device, seq: seq, at: at }, Date.now());
+      if (!taken.ok) {
+        if (taken.reason === 'closed') sendTo(device, { t: 'reject' });
+        return;
+      }
+      if (taken.first) {
+        cast({ t: 'lock' });
+        armDecision();
+      }
+    }
+
+    function finishDecision() {
+      const logic = mpLogic();
+      if (!isHost() || !logic || !net.buzz) return;
+      const result = logic.settleBuzz(net.buzz, Date.now());
+      if (!result) {
+        if (net.buzz.open && net.buzz.buzzes.length) armDecision();
+        return;
+      }
+      if (result.kind === 'tie') {
+        net.localLock = false;
+        net.buzzDevice = '';
+        net.hostPaused = false;
+        if (state.round) state.round.lock = false;
+        state.notice = 'Gleichstand, knapp zusammen. Niemand bekommt den Tipp.';
+        state.phase = 'playing';
+        net.buzz = logic.openBuzz();
+        cast({ t: 'tie' });
+        publish();
+        render();
+        restorePlayback().then(function () {}, function (error) { presentError(error); });
+        return;
+      }
+      net.buzzDevice = result.device;
+      state.guesserId = null;
+      state.phase = 'guess';
+      net.confirmJudge = '';
+      if (state.round) {
+        state.round.lock = true;
+        state.round.pendingSec = buzzSeconds(state.round);
+      }
+      if (String(result.device) !== String(net.selfId)) pauseForBuzz();
+      publish();
+      paintDeferred(function () { render(); });
+    }
+
+    function netBuzz() {
+      const round = state.round;
+      if (!round || state.phase !== 'playing' || round.lock || state.holdingSfx || net.localLock) return;
+      const logic = mpLogic();
+      if (!logic) return;
+      net.localLock = true;
+      net.finger = true;
+      net.buzzSeq += 1;
+      const offset = isHost() || !net.clock ? 0 : logic.clockOffset(net.clock);
+      const packet = { seq: net.buzzSeq, at: Date.now() + offset };
+      const button = document.querySelector('[data-action="buzz"]');
+      if (button) button.disabled = true;
+      if (isGuest()) {
+        sendHost({ t: 'buzz', seq: packet.seq, at: packet.at });
+        return;
+      }
+      pauseForBuzz();
+      noteBuzz(net.selfId, packet.seq, packet.at);
+    }
+
+    function applyGuest(msg) {
+      if (!msg || msg.t !== 'state' || !isGuest()) return;
+      const logic = mpLogic();
+      if (msg.revokePid && logic) {
+        net.locked = logic.unlockLast(net.locked, msg.revokePid);
+        net.pickedLocal = true;
+        saveOrder();
+      }
+      if (msg.scoredPid && net.pickedLocal && logic) {
+        net.locked = logic.lockIn(net.locked, msg.scoredPid);
+        net.pickedLocal = false;
+        saveOrder();
+      }
+      const players = (msg.players || []).map((player) => ({
+        id: Number(player.id),
+        pid: player.pid || '',
+        first: player.first || '',
+        last: player.last || '',
+        name: ((player.first || '') + ' ' + (player.last || '')).trim(),
+        score: Number(player.score) || 0
+      })).filter((player) => player.id);
+      if (players.length) {
+        state.players = players;
+        state.nextId = players.reduce((max, player) => Math.max(max, player.id), 0) + 1;
+      }
+      if (Array.isArray(msg.directory) && msg.directory.length) net.directory = msg.directory;
+      const keepSearch = msg.phase === 'search' && String(msg.searcherId) === String(net.selfId);
+      state.phase = msg.phase || 'setup';
+      state.djId = msg.djId == null ? null : Number(msg.djId);
+      state.guesserId = msg.guesserId == null ? null : Number(msg.guesserId);
+      state.songsStarted = Number(msg.songsStarted) || 0;
+      state.notice = msg.notice || '';
+      state.info = msg.info || '';
+      if (msg.error) state.error = msg.error;
+      else if (!keepSearch) state.error = '';
+      state.holdingSfx = Boolean(msg.hold);
+      net.buzzDevice = msg.buzzDevice || '';
+      net.searcherId = msg.searcherId || '';
+      if (!msg.round) state.round = null;
+      else {
+        state.round = {
+          djId: msg.round.djId == null ? null : Number(msg.round.djId),
+          uri: '',
+          secretTitle: msg.round.secretTitle || '',
+          secretArtist: msg.round.secretArtist || '',
+          durationMs: 0,
+          lock: Boolean(msg.round.lock),
+          outcome: msg.round.outcome || '',
+          outcomeWho: msg.round.outcomeWho || '',
+          unconfirmed: Boolean(msg.round.unconfirmed),
+          startedAt: 0,
+          pendingSec: null
+        };
+        state.transportPaused = Boolean(msg.round.paused);
+      }
+      if (!keepSearch) {
+        state.results = [];
+        state.recommendations = [];
+        state.picked = null;
+        state.recsReady = false;
+        state.recsLoading = false;
+      }
+      state.busy = false;
+      net.localLock = Boolean(msg.hold) || (state.phase === 'playing' && state.round && state.round.lock);
+      if (state.phase === 'guess' && !state.guesserId) net.confirmJudge = '';
+      if (booting) {
+        net.pendingState = null;
+        return;
+      }
+      const mine = String(net.buzzDevice) === String(net.selfId);
+      if (net.finger && mine && (state.phase === 'guess' || state.phase === 'mark')) paintDeferred(function () { render(); });
+      else render();
+    }
+
+    function onGuestPacket(data) {
+      if (!data) return;
+      if (data.t === 'state') {
+        if (booting) net.pendingState = data;
+        else applyGuest(data);
+        return;
+      }
+      if (data.t === 'lock') {
+        net.localLock = true;
+        if (state.round) state.round.lock = true;
+        const button = document.querySelector('[data-action="buzz"]');
+        if (button) button.disabled = true;
+        return;
+      }
+      if (data.t === 'tie') {
+        net.localLock = false;
+        net.finger = false;
+        if (state.round) state.round.lock = false;
+        state.notice = 'Gleichstand, knapp zusammen. Niemand bekommt den Tipp.';
+        render();
+        return;
+      }
+      if (data.t === 'reject' && state.phase === 'playing' && !state.holdingSfx) {
+        net.localLock = false;
+        render();
+        return;
+      }
+      if (data.t === 'pong' && net.clock) {
+        const logic = mpLogic();
+        const t4 = Date.now();
+        if (logic) logic.pushSample(net.clock, logic.ntpOffset(data.t1, data.t2, data.t3, t4), logic.ntpDelay(data.t1, data.t2, data.t3, t4));
+        return;
+      }
+      if (data.t === 'results' && data.id === net.searchWait) {
+        state.busy = false;
+        state.results = Array.isArray(data.tracks) ? data.tracks.filter((track) => track && track.uri) : [];
+        state.picked = null;
+        state.info = state.results.length ? 'Tipp einen Song an und dann auf Los.' : 'Nichts gefunden. Versuch einen anderen Suchbegriff.';
+        render();
+        return;
+      }
+      if (data.t === 'recs' && data.id === net.recWait) {
+        state.recsLoading = false;
+        state.recommendations = Array.isArray(data.tracks) ? data.tracks : [];
+        state.recsReady = true;
+        state.recsNote = state.recommendations.length ? '' : 'Keine passenden Empfehlungen.';
+        render();
+        return;
+      }
+      if (data.t === 'no') {
+        state.busy = false;
+        state.recsLoading = false;
+        presentError(data.text || 'Geht gerade nicht.');
+        render();
+      }
+    }
+
+    async function onHostPacket(from, data) {
+      if (!data) return;
+      if (data.t === 'hello' || data.t === 'ping') {
+        if (data.t === 'ping') sendTo(from, { t: 'pong', n: data.n, t1: data.t1, t2: Date.now(), t3: Date.now() });
+        if (data.t === 'hello') sendTo(from, hostPayload());
+        return;
+      }
+      if (data.t === 'buzz') {
+        if (state.holdingSfx || state.phase !== 'playing') {
+          sendTo(from, { t: 'reject' });
+          return;
+        }
+        noteBuzz(from, data.seq, data.at);
+        return;
+      }
+      net.replyTo = from || '';
+      try {
+        if (data.t === 'add') await addSavedPlayer(data.pid);
+        else if (data.t === 'create') await createAndAdd({ first: data.first, last: data.last });
+        else if (data.t === 'rename') await renamePlayer(Number(data.id), data.first, data.last);
+        else if (data.t === 'remove') await removePlayer(Number(data.id));
+        else if (data.t === 'start') await startGame();
+        else if (data.t === 'dj') {
+          if (state.phase === 'dj') {
+            state.djId = Number(data.id);
+            confirmDj();
+          }
+        } else if (data.t === 'back') backName();
+        else if (data.t === 'back-ended') backName();
+        else if (data.t === 'searching') {
+          if (state.phase === 'search') {
+            net.searcherId = String(from || '');
+            publish();
+            render();
+          }
+        } else if (data.t === 'search') await answerSearch(from, data);
+        else if (data.t === 'recs') await answerRecs(from, data);
+        else if (data.t === 'los') await answerLos(from, data);
+        else if (data.t === 'pick') {
+          if (state.phase === 'guess' && String(net.buzzDevice) === String(from)) applyPick(data.id);
+        } else if (data.t === 'judge') {
+          if (state.phase === 'mark') {
+            if (data.id) state.guesserId = Number(data.id);
+            await judge(Boolean(data.correct));
+          }
+        } else if (data.t === 'mistake') await resumeMistake();
+        else if (data.t === 'skip') await skipSong();
+        else if (data.t === 'ended-yes') endedYes();
+        else if (data.t === 'ended-no') endedNo();
+        else if (data.t === 'ended-who') {
+          state.guesserId = Number(data.id);
+          confirmEndedWho();
+        } else if (data.t === 'next') nextDj();
+        else if (data.t === 'end') await finishGame();
+        else if (data.t === 'home') await returnToLobby();
+      } finally {
+        net.replyTo = '';
+      }
+    }
+
+    async function answerSearch(from, data) {
+      if (state.phase !== 'search') return;
+      const query = String(data.q || '').trim();
+      if (!query) {
+        sendTo(from, { t: 'no', id: data.id, text: 'Suchbegriff fehlt.' });
+        return;
+      }
+      try {
+        await ensureReady();
+        const found = await requireApi().search(query, { types: ['track'], limit: 8 });
+        sendTo(from, { t: 'results', id: data.id, tracks: normalizeTracks(found).map(slimTrack).filter(Boolean) });
+      } catch (error) {
+        sendTo(from, { t: 'no', id: data.id, text: errText(error) });
+      }
+    }
+
+    async function answerRecs(from, data) {
+      if (state.phase !== 'search') return;
+      try {
+        const picks = await buildRecommendations();
+        picks.forEach((track) => rememberShown(track.uri));
+        sendTo(from, { t: 'recs', id: data.id, tracks: picks.map(slimTrack).filter(Boolean) });
+      } catch (error) {
+        sendTo(from, { t: 'no', id: data.id, text: errText(error) });
+      }
+    }
+
+    async function answerLos(from, data) {
+      if (!data.track || state.phase !== 'search') {
+        sendTo(from, { t: 'no', text: 'Der Song kann gerade nicht starten.' });
+        return;
+      }
+      state.picked = data.track;
+      await los();
+      if (state.phase === 'search' && state.error) {
+        sendTo(from, { t: 'no', text: state.error });
+        if (String(net.searcherId) !== String(net.selfId)) state.error = '';
+      }
+    }
+
+    function onNetMessage(message) {
+      const data = message && message.data;
+      const from = message && message.from;
+      if (!data || typeof data !== 'object' || !data.t) return;
+      if (!net.role) {
+        earlyPackets.push({ from: from, data: data });
+        return;
+      }
+      if (isHost()) {
+        Promise.resolve(onHostPacket(from, data)).catch((error) => { presentError(error); render(); });
+        return;
+      }
+      if (isGuest()) onGuestPacket(data);
+    }
+
+    function flushEarly() {
+      const rows = earlyPackets;
+      earlyPackets = [];
+      rows.forEach((row) => onNetMessage({ from: row.from, data: row.data }));
+    }
+
+    function onRoster(roster) {
+      if (!roster) return;
+      net.devices = Array.isArray(roster.players) ? roster.players : [];
+      if (roster.selfId) net.selfId = roster.selfId;
+      if (roster.roomCode) net.roomCode = roster.roomCode;
+      if (isHost()) {
+        const winner = net.devices.find((device) => String(device.id) === String(net.buzzDevice));
+        if (state.phase === 'guess' && net.buzzDevice && winner && !winner.connected) {
+          net.buzzDevice = net.selfId;
+          publish();
+        } else {
+          const payload = hostPayload();
+          net.devices.forEach((device) => {
+            if (device.connected && String(device.id) !== String(net.selfId)) sendTo(device.id, payload);
+          });
+        }
+      }
+      if (!booting) render();
+    }
+
+    function adoptRoom(info) {
+      if (!info) return;
+      net.role = info.role === 'host' ? 'host' : (info.role === 'guest' ? 'guest' : net.role);
+      net.selfId = info.selfId || info.playerId || net.selfId;
+      net.roomCode = info.roomCode || net.roomCode;
+      if (Array.isArray(info.players)) net.devices = info.players;
+      if (info.qrPayload) net.qrPayload = info.qrPayload;
+      net.hostAway = info.status === 'hostAway';
+      const logic = mpLogic();
+      if (logic && !net.clock) net.clock = logic.createClock();
+      if (logic && !net.buzz) net.buzz = logic.openBuzz();
+      if (isGuest()) startPing();
+      else stopPing();
+    }
+
+    function stopPing() {
+      clearInterval(net.pingTimer);
+      net.pingTimer = 0;
+    }
+
+    function startPing() {
+      stopPing();
+      const beat = () => {
+        if (!isGuest()) return;
+        net.pingN += 1;
+        sendHost({ t: 'ping', n: net.pingN, t1: Date.now() });
+      };
+      beat();
+      setTimeout(beat, 250);
+      setTimeout(beat, 700);
+      net.pingTimer = setInterval(beat, 2000);
+    }
+
+    function clearNet() {
+      stopPing();
+      clearTimeout(net.buzzTimer);
+      const logic = mpLogic();
+      net.role = '';
+      net.panel = false;
+      net.detail = '';
+      net.hostAway = false;
+      net.buzzDevice = '';
+      net.searcherId = '';
+      net.localLock = false;
+      net.hostPaused = false;
+      net.confirmJudge = '';
+      net.undo = null;
+      net.devices = [];
+      net.roomCode = '';
+      net.qrPayload = '';
+      net.selfId = '';
+      net.directory = [];
+      net.finger = false;
+      if (logic) net.buzz = logic.openBuzz();
+    }
+
+    function bindMultiplayer() {
+      if (net.bound) return;
+      const logic = mpLogic();
+      if (logic && !net.clock) {
+        net.clock = logic.createClock();
+        net.buzz = logic.openBuzz();
+      }
+      const mp = mpBridge();
+      if (!mp) return;
+      net.bound = true;
+      try {
+        mp.onMessage(onNetMessage);
+        mp.onPlayersChanged(onRoster);
+        if (typeof mp.onResumed === 'function') {
+          mp.onResumed((info) => {
+            adoptRoom(info);
+            if (!saveReady) return;
+            if (isHost()) publish();
+            if (isGuest()) sendHost({ t: 'hello' });
+            if (!booting) render();
+          });
+        }
+        if (typeof mp.onHostAway === 'function') {
+          mp.onHostAway(() => {
+            net.hostAway = true;
+            if (!booting) render();
+          });
+        }
+      } catch (error) {
+        net.detail = errText(error);
+      }
+    }
+
+    async function resumeRoom() {
+      const mp = mpBridge();
+      if (!mp || typeof mp.resume !== 'function') return;
+      try {
+        const back = await mp.resume();
+        if (back && back.role) adoptRoom(back);
+      } catch (error) {
+        net.detail = errText(error);
+      }
+    }
+
+    async function openMultiplayer() {
+      net.panel = true;
+      net.detail = '';
+      render();
+      const mp = mpBridge();
+      if (!mp || typeof mp.discover !== 'function') {
+        net.detail = 'Mehrspieler fehlt in dieser OpenScr-Version. Es braucht einen neuen Build. Einzelspiel geht weiter, der QR-Weg ebenfalls erst mit dem Build.';
+        render();
+        return;
+      }
+      try {
+        await mp.discover({
+          onRooms: (rooms) => {
+            net.rooms = Array.isArray(rooms) ? rooms : [];
+            if (!booting) render();
+          }
+        });
+      } catch (error) {
+        net.detail = errText(error);
+        render();
+      }
+    }
+
+    async function closeMultiplayer() {
+      net.panel = false;
+      const mp = mpBridge();
+      if (mp && typeof mp.stopDiscovery === 'function') {
+        try { await mp.stopDiscovery(); } catch (error) {}
+      }
+      render();
+    }
+
+    async function offerRoom() {
+      const mp = mpBridge();
+      if (!mp || typeof mp.host !== 'function') {
+        net.detail = 'Mehrspieler fehlt in dieser OpenScr-Version. Es braucht einen neuen Build.';
+        render();
+        return;
+      }
+      await withBusy(async () => {
+        const room = await mp.host({ maxPlayers: 16, name: 'Song raten', discoverable: true, joinApproval: false });
+        adoptRoom({
+          role: 'host',
+          playerId: room.playerId,
+          roomCode: room.roomCode,
+          qrPayload: room.qrPayload,
+          players: room.players,
+          status: 'ready'
+        });
+        try { if (mp.stopDiscovery) await mp.stopDiscovery(); } catch (error) {}
+        publish();
+      });
+    }
+
+    async function joinFoundRoom(id) {
+      const mp = mpBridge();
+      if (!mp || !id) return;
+      await withBusy(async () => {
+        const room = await mp.join({ room: id, name: 'Gast' });
+        adoptRoom({
+          role: 'guest',
+          playerId: room.playerId,
+          roomCode: room.roomCode,
+          players: room.players,
+          status: 'ready'
+        });
+        net.panel = false;
+        sendHost({ t: 'hello' });
+      });
+    }
+
+    async function joinByQr() {
+      const mp = mpBridge();
+      if (!mp) return;
+      await withBusy(async () => {
+        const room = await mp.join({ scan: true, name: 'Gast' });
+        adoptRoom({
+          role: 'guest',
+          playerId: room.playerId,
+          roomCode: room.roomCode,
+          players: room.players,
+          status: 'ready'
+        });
+        net.panel = false;
+        sendHost({ t: 'hello' });
+      });
+    }
+
+    async function showRoomQr() {
+      const mp = mpBridge();
+      if (!mp || typeof mp.showQr !== 'function') return;
+      try {
+        const shown = await mp.showQr();
+        if (shown && shown.roomCode) net.roomCode = shown.roomCode;
+        if (shown && shown.qrPayload) net.qrPayload = shown.qrPayload;
+      } catch (error) {
+        presentError(error);
+      }
+      render();
+    }
+
+    async function leaveRoom() {
+      const mp = mpBridge();
+      try { if (mp && mp.leave) await mp.leave(); } catch (error) { presentError(error); }
+      clearNet();
+      await restoreLobby();
+      render();
+    }
+
+    async function claimSearch() {
+      if (state.phase !== 'search') return;
+      if (isGuest()) {
+        sendHost({ t: 'searching' });
+        net.searcherId = net.selfId;
+        render();
+        return;
+      }
+      net.searcherId = net.selfId;
+      publish();
+      render();
+    }
+
+    function endRoom() {
+      const mp = mpBridge();
+      const done = mp && mp.endRoom ? mp.endRoom() : Promise.resolve();
+      return Promise.resolve(done).then(function () {
+        clearNet();
+        render();
+      }, function (error) {
+        presentError(error);
+        render();
+      });
+    }
+
     function afterStatus() {
       booting = false;
       if (state.spotify.availability && state.spotify.availability.connected) {
@@ -3320,20 +4706,45 @@
       } else if (inGame() && state.spotify.availability && state.spotify.availability.connected === false) {
         noteSpotifyDrop();
       }
-      if (state.phase === 'playing' && state.round && !state.round.lock) startPoll();
+      if (!isGuest() && state.phase === 'playing' && state.round && !state.round.lock && !state.holdingSfx) startPoll();
+      if (net.pendingState) {
+        const pending = net.pendingState;
+        net.pendingState = null;
+        applyGuest(pending);
+      }
       render();
     }
 
     let screenLock = null;
+    let bridgeHeld = false;
     let wakeWanted = false;
     let wakeDismissed = false;
     let wakeMode = 'off';
 
+    let resumeFlight = null;
+
+    function watchBridge() {
+      let tries = 0;
+      const timer = setInterval(() => {
+        tries += 1;
+        try { bindMultiplayer(); } catch (error) {}
+        if (mpBridge() && !net.role && !resumeFlight) {
+          resumeFlight = resumeRoom().then(() => {
+            if (isGuest()) sendHost({ t: 'hello' });
+            if (browserGuestShell() && !net.role) net.panel = true;
+            if (!booting) render();
+          }, function () {}).then(() => { resumeFlight = null; });
+        }
+        if (net.role || tries > 16) clearInterval(timer);
+      }, 500);
+    }
+
     async function init() {
-      watchBuzzerSource();
       bindWakeVideo();
       bind();
       subscribe();
+      bindMultiplayer();
+      watchBridge();
       window.addEventListener('pagehide', () => { persistGame(); persistLobby(); persistPlayers(); persistHistory(); });
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
@@ -3346,12 +4757,21 @@
         }
       });
       try {
-        await loadPlayers();
-        await loadHistory();
-        await restoreGame();
-        migrateRoster();
+        await resumeRoom();
+        await loadOrder();
+        if (!isGuest() && !browserGuestShell()) {
+          await loadPlayers();
+          await loadHistory();
+          await restoreGame();
+          migrateRoster();
+          watchBuzzerSource();
+        }
+        if (browserGuestShell() && !net.role) net.panel = true;
       } catch (error) {}
       saveReady = true;
+      flushEarly();
+      if (isHost()) publish();
+      if (isGuest()) sendHost({ t: 'hello' });
       if (playersDirty) persistPlayers();
       if (lobbyDirty) persistLobby();
       if (spotifyApi()) {

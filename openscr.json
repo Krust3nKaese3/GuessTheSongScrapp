@@ -1,7 +1,7 @@
 {
   "name": "Song raten",
   "version": "1.0.0",
-  "description": "Partyspiel auf einem Handy: Songs laufen über die Box, alle raten den Titel.",
+  "description": "Partyspiel: Songs über die Box, alle raten. Optional im selben WLAN, Gäste auch im Browser.",
   "entrypoint": "index.html",
-  "permissions": ["spotify", "vibration", "storage"]
+  "permissions": ["spotify", "vibration", "storage", "multiplayer"]
 }
