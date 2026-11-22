@@ -18,6 +18,7 @@ https://github.com/Krust3nKaese3/GuessTheSongScrapp
    - **spotify** — Suche und Wiedergabe über die Spotify-App
    - **vibration** — kurzes haptisches Feedback, wenn der DJ auf den roten Stopp-Buzzer tippt
    - **storage** — den laufenden Spielstand über das vollständige Schließen von OpenScr hinaus behalten
+   - **multiplayer** — Raum im selben WLAN oder Hotspot, über die OpenScr-Bridge
 
 5. Die Box (Bluetooth-Lautsprecher) wie gewohnt mit dem Handy koppeln. Song raten verbindet sich nicht selbst mit dem Lautsprecher.
 
@@ -152,7 +153,7 @@ Einblenden nach einem richtigen Tipp heißt: Spotify-Lautstärke auf 0, Wiederga
 
 Ab der Lobby beziehungsweise ab **Spiel starten** bis zum Spielende soll das Handy nicht von allein dunkel werden: in der Lobby, bei der Namenswahl, auf der Wertung, zwischen den Runden und auf dem Buzzer. Nach dem Spielende und über Home wird das wieder losgelassen. Die OpenScr-Bridge hat dafür keine Funktion. GuessTheSongScrapp macht es selbst.
 
-Zuerst `navigator.wakeLock.request('screen')`. Wird die Seite verdeckt und wieder sichtbar, wird der Lock neu geholt, ebenso nach dem Wiederherstellen eines Spielstands. Fehlt die Wake-Lock-API, passiert dabei nichts. Lehnt der Lock ab oder fehlt er, startet ein Tippen (Name, Spiel starten, Buzzer oder eine andere Taste) ein winziges, stummes, gelooptes Video ohne Tonspur. Das ist der NoSleep-Weg fürs Android-WebView. Lautstärke 0, `muted`, `playsinline`. Spotify und die drei Effekte bleiben unangetastet.
+Zuerst eine Keep-Awake-Funktion der Bridge, falls sie als Methode da ist. `docs/BRIDGE_API.md` nennt dafür noch keinen Namen. Das Spiel ruft sie nur auf, wenn eine dieser Funktionen wirklich existiert: `wake.enable`/`wake.disable`, `wake.acquire`/`wake.release`, `screen.keepAwake`/`screen.release`, `keepAwake.enable`/`keepAwake.disable` oder `keepAwake.acquire`/`keepAwake.release`. Sonst `navigator.wakeLock.request('screen')`. Wird die Seite verdeckt und wieder sichtbar, wird der Lock neu geholt, ebenso nach dem Wiederherstellen eines Spielstands. Fehlt die API oder lehnt sie ab, startet ein Tippen ein winziges, stummes, gelooptes Video ohne Tonspur. Lautstärke 0, `muted`, `playsinline`. Spotify und die drei Effekte bleiben unangetastet. Ein Fehler dabei bleibt unsichtbar.
 
 Auf dem Endstand und nach Home werden Lock und Video losgelassen. Ein Tipp in der Lobby holt beides wieder. Unten steht klein, welcher Weg hält: `Wach: Wake Lock`, `Wach: Video` oder `Wach: wartet`. Das steht nicht in `songraten.game.v1`.
 
@@ -160,7 +161,21 @@ OpenScr setzt das HTML ohne `baseUrl`, also ohne sichere Origin. Die Wake Lock A
 
 ## Im Browser
 
-Ohne OpenScr-Bridge erscheint ein kurzer Hinweis. Das Spiel startet dort nicht und bricht nicht ab. Ton gibt es nur in OpenScr mit Spotify. Den Spielstand nach dem vollständigen Schließen gibt es nur in OpenScr, nachdem die Berechtigung `storage` erteilt wurde.
+Ohne OpenScr-Bridge erscheint ein kurzer Hinweis. Einzelspiel startet dort nicht und bricht nicht ab. Ton gibt es nur in OpenScr mit Spotify auf dem Host. Den Spielstand nach dem vollständigen Schließen gibt es nur in OpenScr, nachdem die Berechtigung `storage` erteilt wurde.
+
+Gäste können ohne installierte OpenScrapp mitspielen, sobald OpenScr auf dem Host einen lokalen Webserver und ein Browser-Shim ausliefert. Der QR-Code dafür kommt von OpenScr (`multiplayer.showQr`), nicht aus diesem Spiel. Im Browser gibt es dieselbe Multiplayer-API unter `window.OpenScrBridge` (ersatzweise `window.EveryAppBridge`). Spotify, Vibration, Speicher, Statistik und das Spielerverzeichnis laufen dort nicht. Fehlt eine Funktion, passiert nichts weiter: kein Fehlerdialog. Die Suche des DJ geht als Anfrage an den Host. Die lokale Namensreihenfolge liegt in `localStorage`, und wenn der fehlt, nur im Speicher dieser Seite.
+
+## Mehrspieler
+
+Nach der Namensliste gibt es **Multiplayer**. **Spiel starten** bleibt das Einzelspiel. **Spiel anbieten** öffnet den Raum auf dem Host-Handy (Spotify). Andere Geräte sehen ihn in der Nähe, sonst per QR. Handys und Browser gehören keiner Person. Der Host ist die einzige Autorität für Stand, Namen, Punkte, Phase, DJ und den ersten Buzz. Er schreibt `songraten.game.v1`, `songraten.players.v1` und `songraten.history.v1`. Nach jedem Verbinden schickt er den vollen Stand. Wiederbeitritt läuft über `multiplayer.resume`, ohne Extra-Knopf. Ein kleiner Punkt zeigt den Raum, der Host mit Stern.
+
+Nachrichten sind JSON, höchstens 32 KiB. Typen: `hello`, `ping`, `pong`, `state`, `lock`, `tie`, `reject`, `no`, `search`, `results`, `recs`, `los`, `searching`, `buzz`, `dj`, `back`, `back-ended`, `pick`, `judge`, `mistake`, `skip`, `ended-yes`, `ended-no`, `ended-who`, `next`, `start`, `end`, `home`, `add`, `create`, `rename`, `remove`. Der Gast schickt Absichten an den Host. Titel und Empfehlungen gehen nur an das suchende Gerät. In `state` fehlen Titel und Interpret bis zur Auflösung.
+
+Buzz: lokaler Lock sofort, Zeitstempel plus laufende Nummer. Der Gast schätzt den Offset zum Host über Ping/Pong (kleinstes Delay gewinnt). Der Host sammelt 60 ms und wertet bereinigte Zeiten. Abstand unter 15 ms ist Gleichstand: niemand punktet, der Song läuft weiter. Der Host pausiert Spotify nach der Entscheidung, beim eigenen Druck sofort. Nur der Host spielt Buzzer, Richtig und Falsch, weiter mit der bisherigen `playSfx`-`ended`-Logik.
+
+Die Namensliste verweist auf die Spieler-Ids des Hosts. Jedes Gerät darf hinzufügen, umbenennen und entfernen. Ein normalisiert doppelter Name wird abgelehnt. DJ und gerade gewählte ratende Person bleiben. Die Anzeigereihenfolge ist lokal (`songraten.order.v1`): eine hier bestätigte ratende Person rückt unter die festgesetzten Plätze. Versehentlich gedrückt ändert die Reihenfolge nicht.
+
+`node test/logic.test.js` und `node test/multiplayer.test.js` prüfen Suche, Statistik, Buzz-Entscheidung, Reihenfolge und den öffentlichen Spielstand.
 
 ## Aufbau
 
@@ -171,11 +186,11 @@ GuessTheSongScrapp/
 ├── everyapp.json    # dasselbe Manifest, Fallback für ältere Builds
 ├── players.js       # Spielerliste, gemeinsam mit Werwolf
 ├── stats.js         # Protokoll und Allzeit-Statistik
+├── multiplayer.js   # Buzz, Uhr, Reihenfolge, öffentlicher Stand
 ├── test/logic.test.js
+├── test/multiplayer.test.js
 ├── index.html       # App und CSS, Spielablauf inline
 └── README.md
 ```
 
-`node test/logic.test.js` prüft Suche, Anzeige und die Berechnung der Statistik einschließlich Archiv.
-
-Benötigte Berechtigungen: `spotify`, `vibration`, `storage`.
+Benötigte Berechtigungen: `spotify`, `vibration`, `storage`, `multiplayer`.
