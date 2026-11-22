@@ -170,6 +170,10 @@
     .reveal-artist { font-size: 22px; color: #ffb089; margin-top: 6px; overflow-wrap: anywhere; }
     .rank { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08); font-size: 18px; }
     .rank strong { font-size: 22px; }
+    .suggest { display: flex; flex-direction: column; gap: 8px; }
+    .stat-list { display: flex; flex-direction: column; gap: 10px; }
+    .stat-item { padding-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+    .stat-item:last-child { border-bottom: 0; padding-bottom: 0; }
     details { color: #f0d2c8; }
     summary { min-height: 44px; display: flex; align-items: center; font-weight: 800; color: #fff8f4; }
     ol { margin: 8px 0 0; padding-left: 18px; }
@@ -218,6 +222,8 @@
   <audio id="sfx-wrong" src="assets/sounds/wrong.mp3" preload="auto" hidden></audio>
   <video id="wakeVideo" src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAM3bW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAAfQAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAmF0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAAfQAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAH0AAAAAAABAAAAAAHZbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAAAoAAAAFABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABhG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAURzdGJsAAAAuHN0c2QAAAAAAAAAAQAAAKhhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFUxhdmM2MC4zMS4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAALmF2Y0MBQsAe/+EAFmdCwB7ZHsBEAAADAAQAAAMAUDxYuSABAAVoy4PEyAAAABBwYXNwAAAAAQAAAAEAAAAUYnRydAAAAAAAACsQAAArEAAAABhzdHRzAAAAAAAAAAEAAAAFAAAEAAAAABRzdHNzAAAAAAAAAAEAAAABAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAAFAAAAAQAAAChzdHN6AAAAAAAAAAAAAAAFAAAChwAAAAsAAAALAAAACgAAAAoAAAAUc3RjbwAAAAAAAAABAAADZwAAAGJ1ZHRhAAAAWm1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAAAAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNjAuMTYuMTAwAAAACGZyZWUAAAK5bWRhdAAAAnMGBf//b9xF6b3m2Ui3lizYINkj7u94MjY0IC0gY29yZSAxNjQgcjMxMDggMzFlMTlmOSAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMjMgLSBodHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0wIHJlZj0zIGRlYmxvY2s9MTotMzotMyBhbmFseXNlPTB4MToweDExMSBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9Mi4wMDowLjcwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MSA4eDhkY3Q9MCBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tNCB0aHJlYWRzPTEgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbmVkX2ludHJhPTAgYmZyYW1lcz0wIHdlaWdodHA9MCBrZXlpbnQ9MjUwIGtleWludF9taW49MTAgc2NlbmVjdXQ9NDAgaW50cmFfcmVmcmVzaD0wIHJjX2xvb2thaGVhZD00MCByYz1jcmYgbWJ0cmVlPTEgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEuNDAgYXE9MToxLjIwAIAAAAAMZYiEBLOcmKAAOKOAAAAAB0GaOAlnOoAAAAAHQZpUAlnOoAAAAAZBmmARznUAAAAGQZqAEM51" muted playsinline webkit-playsinline loop preload="auto" disablepictureinpicture aria-hidden="true"></video>
   <p id="wakeDebug" class="wake-debug" hidden></p>
+  <script src="players.js"></script>
+  <script src="stats.js"></script>
   <script>
     const NO_CLIENT_ID = 'Keine Spotify Client ID hinterlegt. Bitte in den OpenScr-Einstellungen eintragen.';
     const NOT_INSTALLED = 'Spotify ist nicht installiert. Bitte die Spotify-App aus dem Play Store installieren und dich dort anmelden.';
@@ -233,6 +239,12 @@
       picked: null,
       results: [],
       draftName: '',
+      draftFirst: '',
+      draftLast: '',
+      creating: false,
+      overlay: null,
+      statsPid: '',
+      session: null,
       draftQuery: '',
       guesserId: null,
       error: '',
@@ -267,14 +279,27 @@
 
     const SAVE_KEY = 'songraten.game.v1';
     const LOBBY_KEY = 'songraten.lobby.v1';
+    const PLAYERS_KEY = 'songraten.players.v1';
+    const HISTORY_KEY = 'songraten.history.v1';
     const STORAGE_TIMEOUT_MS = 4000;
     const IN_GAME_PHASES = ['dj', 'search', 'playing', 'guess', 'endedAsk', 'endedWho', 'reveal'];
     const SAVE_FIELDS = [
       'phase', 'players', 'nextId', 'djId', 'round', 'picked', 'results',
       'draftName', 'draftQuery', 'guesserId', 'error', 'info', 'notice',
       'confirmEnd', 'transportPaused', 'songsStarted', 'startedUris',
-      'shownRecommendationUris', 'recommendations', 'recsReady', 'recsNote'
+      'shownRecommendationUris', 'recommendations', 'recsReady', 'recsNote',
+      'session'
     ];
+
+    let registry = [];
+    let historyDoc = null;
+    let playersReadOk = false;
+    let playersDirty = false;
+    let playersEpoch = 0;
+    let historyReadOk = false;
+    let historyDirty = false;
+    let historyEpoch = 0;
+    let labels = new Map();
 
     const app = document.getElementById('app');
 
@@ -1330,32 +1355,304 @@
       }
     }
 
-    async function addPlayer() {
-      const field = document.getElementById('playerName');
-      if (field) state.draftName = field.value;
-      const name = (state.draftName || '').trim().replace(/\s+/g, ' ');
-      if (!name) {
-        presentError('Bitte einen Namen eintragen.');
-        render();
+    function playerApi() {
+      return globalThis.OpenScrPlayers || null;
+    }
+
+    function statsApi() {
+      return globalThis.OpenScrStats || null;
+    }
+
+    function splitLegacy(name) {
+      const clean = String(name || '').trim().replace(/\s+/g, ' ');
+      if (!clean) return { first: '', last: '' };
+      const space = clean.indexOf(' ');
+      if (space === -1) return { first: clean, last: '' };
+      return { first: clean.slice(0, space), last: clean.slice(space + 1).trim() };
+    }
+
+    function rosterShape(player) {
+      const legacy = splitLegacy(player && player.name);
+      const first = (player && player.first) || legacy.first;
+      const last = player && player.first ? (player.last || '') : ((player && player.last) || legacy.last);
+      return { id: player && player.id, first: first, last: last };
+    }
+
+    function refreshLabels() {
+      const api = playerApi();
+      labels = new Map();
+      if (!api) {
+        state.players.forEach((player) => labels.set(player.id, player.name || player.first || ''));
         return;
       }
-      if (name.length > 24) {
-        presentError('Der Name ist zu lang (höchstens 24 Zeichen).');
-        render();
+      api.displayNames(state.players.map(rosterShape)).forEach((row) => labels.set(row.id, row.name));
+    }
+
+    function labelOf(player) {
+      if (!player) return '';
+      if (!labels.size) refreshLabels();
+      if (labels.has(player.id)) return labels.get(player.id);
+      return player.first || player.name || '';
+    }
+
+    function rosterPids() {
+      return state.players.map((player) => player.pid).filter(Boolean);
+    }
+
+    function findSaved(first, last) {
+      const api = playerApi();
+      if (!api) return null;
+      const given = api.normalize(first);
+      const family = api.normalize(last);
+      return registry.find((player) => api.normalize(player.first) === given && api.normalize(player.last) === family) || null;
+    }
+
+    function rememberPlayer(record) {
+      if (!record || !record.id) return;
+      if (!registry.some((player) => player.id === record.id)) registry.push(record);
+      playersDirty = true;
+    }
+
+    function migrateRoster() {
+      const api = playerApi();
+      state.players.forEach((player) => {
+        if (player.first) return;
+        const legacy = splitLegacy(player.name);
+        player.first = legacy.first;
+        if (!player.last) player.last = legacy.last;
+      });
+      if (!api) {
+        refreshLabels();
         return;
       }
-      if (state.players.some((player) => player.name.toLowerCase() === name.toLowerCase())) {
-        presentError('Diesen Namen gibt es schon. Nimm zum Beispiel einen Zusatz.');
+      let changed = false;
+      state.players.forEach((player) => {
+        const known = player.pid && registry.find((item) => item.id === player.pid);
+        if (known) {
+          player.first = known.first;
+          player.last = known.last;
+          player.name = (known.first + ' ' + known.last).trim() || known.first;
+          return;
+        }
+        const match = findSaved(player.first, player.last);
+        if (match) {
+          player.pid = match.id;
+          player.first = match.first;
+          player.last = match.last;
+          player.name = (match.first + ' ' + match.last).trim() || match.first;
+          changed = true;
+          return;
+        }
+        if (!player.first) return;
+        let created = player.last ? api.createPlayer(player.first, player.last) : api.createPlayer(player.first, player.first);
+        if (created && !player.last) created.last = '';
+        if (!created) return;
+        rememberPlayer(created);
+        player.pid = created.id;
+        player.first = created.first;
+        player.last = created.last;
+        player.name = (created.first + ' ' + created.last).trim() || created.first;
+        changed = true;
+      });
+      if (changed) lobbyDirty = true;
+      refreshLabels();
+    }
+
+    function readNamingFields() {
+      const name = document.getElementById('playerName');
+      const first = document.getElementById('playerFirst');
+      const last = document.getElementById('playerLast');
+      if (name) state.draftName = name.value;
+      if (first) state.draftFirst = first.value;
+      if (last) state.draftLast = last.value;
+    }
+
+    function addSavedPlayer(pid) {
+      const record = registry.find((player) => player.id === pid);
+      if (!record) return Promise.resolve();
+      if (state.players.some((player) => player.pid === record.id)) {
+        presentError('Diese Person ist schon dabei.');
         render();
-        return;
+        return Promise.resolve();
       }
-      state.players.push({ id: state.nextId++, name, score: 0 });
+      state.players.push({
+        id: state.nextId++,
+        pid: record.id,
+        first: record.first,
+        last: record.last,
+        name: (record.first + ' ' + record.last).trim() || record.first,
+        score: 0
+      });
       state.draftName = '';
+      state.draftFirst = '';
+      state.draftLast = '';
+      state.creating = false;
       state.error = '';
       lobbyDirty = true;
       const saved = persistLobby();
       render();
+      return saved;
+    }
+
+    function submitPlayerQuery() {
+      readNamingFields();
+      const api = playerApi();
+      const query = (state.draftName || '').trim();
+      if (!query || !api) {
+        presentError('Tipp eine gespeicherte Person an oder leg eine neue an.');
+        render();
+        return;
+      }
+      const hits = api.search(registry, query, rosterPids());
+      if (hits.length === 1) {
+        addSavedPlayer(hits[0].id);
+        return;
+      }
+      presentError(hits.length
+        ? 'Mehrere Treffer. Tipp die richtige Person an.'
+        : 'Niemand passt. Leg die Person mit Vor- und Nachname neu an.');
+      render();
+    }
+
+    function openCreate() {
+      readNamingFields();
+      const parts = (state.draftName || '').trim().split(/\s+/).filter(Boolean);
+      state.draftFirst = parts[0] || '';
+      state.draftLast = parts.slice(1).join(' ');
+      state.creating = true;
+      state.error = '';
+      render();
+    }
+
+    async function createAndAdd() {
+      readNamingFields();
+      const api = playerApi();
+      const first = (state.draftFirst || '').trim();
+      const last = (state.draftLast || '').trim();
+      if (!api) {
+        presentError('Die Spielerliste konnte nicht geladen werden.');
+        render();
+        return;
+      }
+      if (!first || !last) {
+        presentError('Bitte Vor- und Nachname eintragen.');
+        render();
+        return;
+      }
+      if (first.length > 40 || last.length > 40) {
+        presentError('Vor- und Nachname dürfen höchstens 40 Zeichen haben.');
+        render();
+        return;
+      }
+      const existing = findSaved(first, last);
+      if (existing) {
+        state.info = existing.first + ' ' + existing.last + ' war schon gespeichert.';
+        await addSavedPlayer(existing.id);
+        return;
+      }
+      const created = api.createPlayer(first, last);
+      if (!created) {
+        presentError('Bitte Vor- und Nachname eintragen.');
+        render();
+        return;
+      }
+      rememberPlayer(created);
+      const saved = persistPlayers();
+      state.info = '';
+      await addSavedPlayer(created.id);
       await saved;
+    }
+
+    function paintPlayerSuggest() {
+      const box = document.getElementById('playerSuggestions');
+      if (!box) return;
+      const api = playerApi();
+      box.replaceChildren();
+      if (!api || state.creating || state.phase !== 'setup' || state.overlay) return;
+      const hits = api.search(registry, state.draftName, rosterPids()).slice(0, 8);
+      if (!hits.length) {
+        if ((state.draftName || '').trim()) {
+          const hint = document.createElement('p');
+          hint.className = 'hint';
+          hint.textContent = 'Kein gespeicherter Treffer.';
+          box.appendChild(hint);
+        }
+        return;
+      }
+      hits.forEach((player) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'choice';
+        button.dataset.action = 'add-saved';
+        button.dataset.pid = player.id;
+        const name = document.createElement('span');
+        name.className = 'player-name';
+        name.textContent = (player.first + ' ' + player.last).trim() || player.first;
+        button.appendChild(name);
+        box.appendChild(button);
+      });
+    }
+
+    function beginSession() {
+      const api = statsApi();
+      if (!api) {
+        state.session = null;
+        return;
+      }
+      state.session = api.createGame(state.players.map((player) => player.pid).filter(Boolean), Date.now());
+      state.session.full = true;
+    }
+
+    function activeSession() {
+      if (state.session && Array.isArray(state.session.events)) return state.session;
+      const api = statsApi();
+      if (!api) return null;
+      state.session = api.createGame(state.players.map((player) => player.pid).filter(Boolean), Date.now());
+      state.session.full = false;
+      return state.session;
+    }
+
+    function logEvent(event) {
+      if (!event || (!event.p && !event.dj)) return;
+      const session = activeSession();
+      if (!session) return;
+      session.events.push(event);
+    }
+
+    function buzzSeconds(round) {
+      const pos = Number(round && round.positionMs);
+      if (isFinite(pos) && pos > 250) return pos / 1000;
+      const started = Number(round && round.startedAt);
+      if (isFinite(started) && started > 0) return Math.max(0, (Date.now() - started) / 1000);
+      if (isFinite(pos) && pos >= 0) return pos / 1000;
+      return null;
+    }
+
+    function dropTrailingRound(uri) {
+      const session = state.session;
+      const api = statsApi();
+      if (!session || !api || !Array.isArray(session.events)) return;
+      const id = api.roundEvent('', uri, '', '').id;
+      for (let i = session.events.length - 1; i >= 0; i -= 1) {
+        const event = session.events[i];
+        if (event.t === 'v' || event.t === 'k' || event.t === 'd') return;
+        if (event.t === 'r' && event.id === id) {
+          session.events.splice(i, 1);
+          return;
+        }
+      }
+    }
+
+    async function archiveFinishedGame() {
+      const api = statsApi();
+      const session = state.session;
+      state.session = null;
+      if (!api || !session || !session.full) return;
+      if (!session.events.some((event) => event && event.t === 'r')) return;
+      session.players = state.players.map((player) => player.pid).filter(Boolean);
+      historyDoc = api.ingest(historyDoc || api.emptyHistory(), api.finishGame(session, Date.now()));
+      historyDirty = true;
+      await persistHistory();
     }
 
     async function removePlayer(id) {
@@ -1379,6 +1676,9 @@
         state.dropNoted = false;
         state.resumeAfterReconnect = false;
         state.playbackGraceUntil = 0;
+        state.overlay = null;
+        state.creating = false;
+        beginSession();
         state.phase = 'dj';
         state.djId = null;
         state.round = null;
@@ -1529,6 +1829,9 @@
         };
         state.songsStarted += 1;
         rememberStarted(picked);
+        const djPlayer = playerById(state.djId);
+        const stats = statsApi();
+        if (stats && djPlayer && djPlayer.pid) logEvent(stats.roundEvent(djPlayer.pid, picked.uri, picked.title, picked.artist));
         state.transportPaused = Boolean(playback && playback.paused);
         state.resumeAfterReconnect = false;
         state.notice = '';
@@ -1550,6 +1853,7 @@
       }
       playBuzzerImmediate();
       round.lock = true;
+      round.pendingSec = buzzSeconds(round);
       stopPoll();
       state.resumeAfterReconnect = false;
       beginTransportTurn(true);
@@ -1619,6 +1923,7 @@
       try { await requireApi().pause(); } catch (error) { presentError(error); }
       state.songsStarted = Math.max(0, state.songsStarted - 1);
       forgetStarted(round.uri);
+      dropTrailingRound(round.uri);
       state.round = null;
       state.phase = 'search';
       state.info = 'Der Song ist nicht angelaufen. Such noch einmal.';
@@ -1640,7 +1945,13 @@
       if (correct) {
         guesser.score += 2;
         round.outcome = 'correct';
-        round.outcomeWho = guesser.name;
+        round.outcomeWho = labelOf(guesser);
+        const stats = statsApi();
+        if (stats && guesser.pid) {
+          logEvent(stats.buzzEvent(guesser.pid, round.pendingSec));
+          logEvent(stats.scoreEvent(guesser.pid, true, 2, round.pendingSec));
+        }
+        round.pendingSec = null;
         state.phase = 'reveal';
         const epoch = beginTransportTurn();
         render();
@@ -1659,7 +1970,13 @@
       }
       guesser.score -= 1;
       round.lock = false;
-      state.notice = guesser.name + ' liegt falsch und bekommt −1. Nach dem Ton läuft der Song sofort weiter.';
+      const wrongStats = statsApi();
+      if (wrongStats && guesser.pid) {
+        logEvent(wrongStats.buzzEvent(guesser.pid, round.pendingSec));
+        logEvent(wrongStats.scoreEvent(guesser.pid, false, -1));
+      }
+      round.pendingSec = null;
+      state.notice = labelOf(guesser) + ' liegt falsch und bekommt −1. Nach dem Ton läuft der Song sofort weiter.';
       state.phase = 'playing';
       state.transportPaused = true;
       const epoch = beginTransportTurn();
@@ -1695,6 +2012,7 @@
       if (!round || state.phase !== 'guess') return;
       const epoch = beginTransportTurn();
       round.lock = false;
+      round.pendingSec = null;
       state.notice = 'Stopp zurückgenommen. Der Song läuft weiter, niemand bekommt Punkte.';
       state.phase = 'playing';
       render();
@@ -1722,6 +2040,8 @@
       stopPoll();
       dj.score -= 3;
       round.outcome = 'skip';
+      const skipStats = statsApi();
+      if (skipStats && dj.pid) logEvent(skipStats.skipEvent(dj.pid, -3));
       state.phase = 'reveal';
       render();
       try { await requireApi().pause(); } catch (error) { presentError(error); paintBanners(); }
@@ -1740,6 +2060,8 @@
       if (!round || !dj || state.phase !== 'endedAsk') return;
       dj.score -= 3;
       round.outcome = 'ended-no';
+      const missStats = statsApi();
+      if (missStats && dj.pid) logEvent(missStats.missEvent(dj.pid, -3));
       state.phase = 'reveal';
       render();
     }
@@ -1750,7 +2072,9 @@
       if (!round || !guesser || state.phase !== 'endedWho' || guesser.id === round.djId) return;
       guesser.score += 2;
       round.outcome = 'ended-yes';
-      round.outcomeWho = guesser.name;
+      round.outcomeWho = labelOf(guesser);
+      const endStats = statsApi();
+      if (endStats && guesser.pid) logEvent(endStats.scoreEvent(guesser.pid, true, 2, round.durationMs ? round.durationMs / 1000 : null));
       state.phase = 'reveal';
       render();
     }
@@ -1782,6 +2106,7 @@
       stopPoll();
       clearVisibleRecommendations();
       if (state.round) state.round.lock = true;
+      try { await archiveFinishedGame(); } catch (error) {}
       state.phase = 'final';
       state.resumeAfterReconnect = false;
       state.dropNoted = false;
@@ -1803,6 +2128,8 @@
       releaseAwake();
       beginTransportTurn();
       state.players.forEach((player) => { player.score = 0; });
+      state.session = null;
+      state.overlay = null;
       state.phase = 'setup';
       state.djId = null;
       state.round = null;
@@ -1854,7 +2181,7 @@
       const dj = currentDjId();
       return `<div class="scores" aria-label="Punktestand">${state.players.map((player) => `
         <span class="chip${player.id === dj ? ' is-dj' : ''}">
-          <span class="chip-name">${esc(player.name)}</span>
+          <span class="chip-name">${esc(labelOf(player))}</span>
           <span class="chip-score">${formatScore(player.score)}</span>
           ${player.id === dj ? '<span class="chip-role">DJ</span>' : ''}
         </span>`).join('')}</div>`;
@@ -1935,9 +2262,21 @@
       </section>`;
     }
 
+    function namingFormHtml() {
+      if (!state.creating) {
+        return `<button type="button" class="btn secondary" data-action="new-player">Neue Person</button>`;
+      }
+      return `<form class="stack" data-action="create-player">
+        <input id="playerFirst" type="text" maxlength="40" placeholder="Vorname" autocomplete="off" autocapitalize="words" value="${esc(state.draftFirst)}" aria-label="Vorname">
+        <input id="playerLast" type="text" maxlength="40" placeholder="Nachname" autocomplete="off" autocapitalize="words" value="${esc(state.draftLast)}" aria-label="Nachname">
+        <button class="btn" type="submit">Speichern und hinzufügen</button>
+        <button type="button" class="btn ghost" data-action="cancel-create">Zurück</button>
+      </form>`;
+    }
+
     function renderSetup() {
       const players = state.players.length
-        ? state.players.map((player) => `<div class="player"><span class="player-name">${esc(player.name)}</span><button type="button" class="icon-btn" data-action="remove-player" data-id="${player.id}" aria-label="${esc(player.name)} entfernen">✕</button></div>`).join('')
+        ? state.players.map((player) => `<div class="player"><span class="player-name">${esc(labelOf(player))}</span><button type="button" class="icon-btn" data-action="remove-player" data-id="${player.id}" aria-label="${esc(labelOf(player))} entfernen">✕</button></div>`).join('')
         : '<p class="hint">Noch niemand eingetragen.</p>';
       return `${headerHtml()}
         <div class="stack">
@@ -1947,13 +2286,15 @@
           ${spotifyCardHtml()}
           <section class="card stack">
             <h2>Mitspieler</h2>
-            <form class="row" data-action="add-player">
-              <input id="playerName" type="text" maxlength="24" placeholder="Name" autocomplete="off" autocapitalize="words" value="${esc(state.draftName)}" aria-label="Name">
-              <button class="btn" type="submit" ${state.busy ? 'disabled' : ''}>Hinzufügen</button>
+            <form class="stack" data-action="add-player">
+              <input id="playerName" type="text" maxlength="80" placeholder="Name suchen" autocomplete="off" autocapitalize="words" value="${esc(state.draftName)}" aria-label="Name suchen">
             </form>
+            <div id="playerSuggestions" class="suggest"></div>
+            ${namingFormHtml()}
             ${players}
             <button type="button" class="btn" data-action="start" ${state.busy || state.players.length < 2 ? 'disabled' : ''}>Spiel starten</button>
-            <p class="hint">Mindestens zwei Personen. Punkte gibt es erst im Spiel, und sie bleiben nur bis „Spiel beenden“.</p>
+            <button type="button" class="btn ghost" data-action="open-players">Gespeicherte Spieler</button>
+            <p class="hint">Mindestens zwei Personen. Tippe einen gespeicherten Namen an oder leg Vor- und Nachname neu an. In der Runde steht der Vorname, bei gleichem Vornamen mit Nachnamen-Kürzel. Punkte dieser Runde gelten bis „Spiel beenden“. Die Allzeit-Statistik bleibt auf diesem Handy.</p>
           </section>
           <details class="card">
             <summary>Regeln kurz</summary>
@@ -1972,7 +2313,7 @@
     }
 
     function renderDj() {
-      const choices = state.players.map((player) => `<button type="button" class="choice${player.id === state.djId ? ' selected' : ''}" data-action="select-dj" data-id="${player.id}">${esc(player.name)}</button>`).join('');
+      const choices = state.players.map((player) => `<button type="button" class="choice${player.id === state.djId ? ' selected' : ''}" data-action="select-dj" data-id="${player.id}">${esc(labelOf(player))}</button>`).join('');
       return `${headerHtml()}<div class="stack">
         ${bannersHtml()}
         ${reconnectHtml()}
@@ -2015,7 +2356,7 @@
         <section class="stack">
           <h2>Song aussuchen</h2>
           <button type="button" class="btn ghost" data-action="back-name">Zurück</button>
-          <p class="hint">DJ: ${esc(dj ? dj.name : '')}. Nur du solltest diese Liste sehen. Falsche Person? Zurück, dann neu wählen.</p>
+          <p class="hint">DJ: ${esc(dj ? labelOf(dj) : '')}. Nur du solltest diese Liste sehen. Falsche Person? Zurück, dann neu wählen.</p>
           <form class="stack" data-action="search">
             <input id="searchQuery" type="text" placeholder="Titel oder Interpret" autocomplete="off" value="${esc(state.draftQuery)}" aria-label="Suche">
             <button class="btn secondary" type="submit" ${searchLocked ? 'disabled' : ''}>Suchen</button>
@@ -2038,7 +2379,7 @@
         ${state.notice ? `<div class="banner info">${esc(state.notice)}</div>` : ''}
         <section class="stage">
           <div class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-          <p class="eyebrow">DJ ${esc(dj ? dj.name : '')}</p>
+          <p class="eyebrow">DJ ${esc(dj ? labelOf(dj) : '')}</p>
           <p id="playState" class="lead" aria-live="polite">${state.transportPaused ? 'Die Wiedergabe ist pausiert. Titel und Interpret bleiben verdeckt.' : 'Der Song läuft über die Box. Titel und Interpret bleiben verdeckt.'}</p>
           <button type="button" class="buzzer" data-action="buzz" ${state.holdingSfx ? 'disabled' : ''} aria-label="Stopp, Song anhalten">STOPP</button>
           <button type="button" id="resumeBtn" class="btn secondary" data-action="resume" ${state.transportPaused && !state.holdingSfx ? '' : 'hidden'}>Fortsetzen</button>
@@ -2048,14 +2389,14 @@
             <button type="button" class="btn ghost" data-action="back-search">Zurück zur Suche</button>
           </div>` : ''}
         </section>
-        <button type="button" class="btn ghost" data-action="skip" ${state.holdingSfx ? 'disabled' : ''}>Überspringen (−3 für ${esc(dj ? dj.name : 'den DJ')})</button>
+        <button type="button" class="btn ghost" data-action="skip" ${state.holdingSfx ? 'disabled' : ''}>Überspringen (−3 für ${esc(dj ? labelOf(dj) : 'den DJ')})</button>
       </div>`;
     }
 
     function guessListHtml() {
       const dj = currentDjId();
       return state.players.filter((player) => player.id !== dj).map((player) => `
-        <button type="button" class="choice${player.id === state.guesserId ? ' selected' : ''}" data-action="select-guesser" data-id="${player.id}">${esc(player.name)}</button>
+        <button type="button" class="choice${player.id === state.guesserId ? ' selected' : ''}" data-action="select-guesser" data-id="${player.id}">${esc(labelOf(player))}</button>
       `).join('');
     }
 
@@ -2114,9 +2455,9 @@
       const dj = round && playerById(round.djId);
       let outcome = '';
       if (round && round.outcome === 'correct') outcome = (round.outcomeWho || 'Jemand') + ' liegt richtig und bekommt +2.';
-      if (round && round.outcome === 'skip') outcome = 'Übersprungen. ' + (dj ? dj.name : 'Der DJ') + ' bekommt −3.';
+      if (round && round.outcome === 'skip') outcome = 'Übersprungen. ' + (dj ? labelOf(dj) : 'Der DJ') + ' bekommt −3.';
       if (round && round.outcome === 'ended-yes') outcome = 'Doch erraten. ' + (round.outcomeWho || 'Jemand') + ' bekommt +2.';
-      if (round && round.outcome === 'ended-no') outcome = 'Nicht erraten. ' + (dj ? dj.name : 'Der DJ') + ' bekommt −3.';
+      if (round && round.outcome === 'ended-no') outcome = 'Nicht erraten. ' + (dj ? labelOf(dj) : 'Der DJ') + ' bekommt −3.';
       return `${headerHtml()}<div class="stack">
         ${bannersHtml()}
         ${reconnectHtml()}
@@ -2133,10 +2474,10 @@
     }
 
     function renderFinal() {
-      const ranked = state.players.slice().sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'de'));
+      const ranked = state.players.slice().sort((a, b) => b.score - a.score || labelOf(a).localeCompare(labelOf(b), 'de'));
       const top = ranked[0];
       const tied = ranked.filter((player) => player.score === (top ? top.score : 0));
-      const winner = top && tied.length === 1 ? top.name + ' gewinnt.' : 'Gleichstand an der Spitze.';
+      const winner = top && tied.length === 1 ? labelOf(top) + ' gewinnt.' : 'Gleichstand an der Spitze.';
       return `${headerHtml()}<div class="stack">
         ${bannersHtml()}
         ${reconnectHtml()}
@@ -2144,13 +2485,99 @@
           <h2>Endstand</h2>
           <p class="lead">${state.players.length ? esc(winner) : 'Keine Mitspieler.'}</p>
           <p class="hint">${state.songsStarted} ${state.songsStarted === 1 ? 'Song wurde' : 'Songs wurden'} gestartet.</p>
-          ${ranked.map((player, index) => `<div class="rank"><span>${index + 1}. ${esc(player.name)}</span><strong>${formatScore(player.score)}</strong></div>`).join('')}
+          ${ranked.map((player, index) => `<div class="rank"><span>${index + 1}. ${esc(labelOf(player))}</span><strong>${formatScore(player.score)}</strong></div>`).join('')}
         </section>
       </div>`;
     }
 
+    function formatSec(value) {
+      if (typeof value !== 'number' || !isFinite(value)) return '–';
+      return value.toFixed(1).replace('.', ',') + ' s';
+    }
+
+    function sortedRegistry() {
+      const api = playerApi();
+      return registry.slice().sort((a, b) => {
+        const left = api ? api.normalize((a.first || '') + ' ' + (a.last || '')) : ((a.first || '') + ' ' + (a.last || ''));
+        const right = api ? api.normalize((b.first || '') + ' ' + (b.last || '')) : ((b.first || '') + ' ' + (b.last || ''));
+        return left.localeCompare(right, 'de') || String(a.id).localeCompare(String(b.id));
+      });
+    }
+
+    function personTitle(player) {
+      if (!player) return 'Unbekannt';
+      return (player.first + ' ' + player.last).trim() || player.first || 'Unbekannt';
+    }
+
+    function renderPlayerDirectory() {
+      const rows = sortedRegistry();
+      const list = rows.length
+        ? rows.map((player) => `<button type="button" class="choice" data-action="open-stats" data-pid="${esc(player.id)}"><span><span class="player-name">${esc(personTitle(player))}</span><span class="track-meta">Allzeit-Statistik</span></span></button>`).join('')
+        : '<p class="hint">Noch niemand gespeichert. In der Lobby legt ihr eine Person mit Vor- und Nachname an.</p>';
+      return `${headerHtml()}<div class="stack">
+        ${bannersHtml()}
+        <button type="button" class="btn ghost" data-action="back-overlay">Zurück</button>
+        <section class="card stack">
+          <h2>Gespeicherte Spieler</h2>
+          <p class="hint">Die Liste liegt auf diesem Handy. Ein Tipp öffnet die Statistik. Entfernen aus der Runde löscht niemanden hier.</p>
+          ${list}
+        </section>
+      </div>`;
+    }
+
+    function renderPlayerStats() {
+      const record = registry.find((player) => player.id === state.statsPid);
+      const api = statsApi();
+      const data = record && api ? api.statsFor(historyDoc || api.emptyHistory(), record.id) : null;
+      const archived = Boolean(historyDoc && historyDoc.archive && record && historyDoc.archive[record.id]);
+      const djSongs = data && data.djSongs.length
+        ? data.djSongs.map((row) => `<div class="stat-item"><span class="player-name">${esc(row.title || 'Unbekannter Titel')}</span><span class="track-meta">${esc(row.artist || '')}</span><span class="hint">${esc(row.count + '×')}</span></div>`).join('')
+        : '<p class="hint">Noch keine Songs aufgelegt.</p>';
+      const guessed = data && data.guessed.length
+        ? data.guessed.map((row) => {
+          const times = (row.seconds || []).map(formatSec);
+          const bits = [row.count + '×'];
+          if (row.average != null) bits.push('Ø ' + formatSec(row.average));
+          if (times.length) bits.push(times.join(', '));
+          if (archived && times.length < row.count) bits.push('ältere Einzelzeiten nur in der Summe');
+          return `<div class="stat-item"><span class="player-name">${esc(row.title || 'Unbekannter Titel')}</span><span class="track-meta">${esc(row.artist || '')}</span><span class="hint">${esc(bits.join(' · '))}</span></div>`;
+        }).join('')
+        : '<p class="hint">Noch nichts erraten.</p>';
+      const points = data ? formatScore(data.points) : '0';
+      const games = data ? data.games : 0;
+      const wins = data ? data.wins : 0;
+      return `${headerHtml()}<div class="stack">
+        ${bannersHtml()}
+        <button type="button" class="btn ghost" data-action="back-overlay">Zurück</button>
+        <section class="card stack">
+          <p class="eyebrow">Allzeit</p>
+          <h2>${esc(personTitle(record))}</h2>
+          <div class="rank"><span>Punkte</span><strong>${esc(points)}</strong></div>
+          <div class="rank"><span>Spiele</span><strong>${games}</strong></div>
+          <div class="rank"><span>Siege</span><strong>${wins}</strong></div>
+          <p class="hint">Ein Sieg zählt nur, wenn niemand sonst gleich viele Punkte hat. Alles wird aus den Spielprotokollen berechnet.</p>
+        </section>
+        <section class="card stack">
+          <h2>Als DJ aufgelegt</h2>
+          <div class="stat-list">${djSongs}</div>
+        </section>
+        <section class="card stack">
+          <h2>Erraten</h2>
+          <div class="stat-list">${guessed}</div>
+        </section>
+      </div>`;
+    }
+
+    function overlayView() {
+      if (state.phase !== 'setup') return null;
+      if (state.overlay === 'players') return renderPlayerDirectory;
+      if (state.overlay === 'stats') return renderPlayerStats;
+      return null;
+    }
+
     function render() {
       if (booting) return;
+      refreshLabels();
       const views = {
         setup: renderSetup,
         dj: renderDj,
@@ -2162,8 +2589,9 @@
         reveal: renderReveal,
         final: renderFinal
       };
-      const view = views[state.phase] || renderSetup;
+      const view = overlayView() || views[state.phase] || renderSetup;
       app.innerHTML = view() + modalHtml();
+      paintPlayerSuggest();
       persistGame();
       syncScreenWake(false);
     }
@@ -2258,12 +2686,61 @@
         v: 1,
         players: state.players.map((player) => ({
           id: player.id,
+          pid: player.pid || undefined,
           name: player.name,
+          first: player.first || undefined,
+          last: player.last || undefined,
           score: 0
         })),
         nextId: state.nextId,
-        draftName: asText(state.draftName).slice(0, 24)
+        draftName: asText(state.draftName).slice(0, 80)
       });
+    }
+
+    function playersSnapshotRaw() {
+      return JSON.stringify({ v: 1, players: registry });
+    }
+
+    function historySnapshotRaw() {
+      const api = statsApi();
+      const doc = historyDoc || (api ? api.emptyHistory() : { v: 1, games: [], archive: {} });
+      return JSON.stringify(doc);
+    }
+
+    function persistPlayers() {
+      if (!saveReady) return Promise.resolve();
+      const touchBridge = playersReadOk || playersDirty;
+      if (!touchBridge) return Promise.resolve();
+      let raw;
+      try { raw = playersSnapshotRaw(); } catch (error) { return Promise.resolve(); }
+      playersReadOk = true;
+      writeLocalRaw(PLAYERS_KEY, raw);
+      const epoch = ++playersEpoch;
+      const job = saveQueue.then(() => {
+        if (epoch !== playersEpoch) return null;
+        return writeBridgeRaw(PLAYERS_KEY, raw);
+      });
+      saveQueue = job.then(() => {}, () => {});
+      return job.then(() => {}, () => {});
+    }
+
+    function persistHistory() {
+      if (!saveReady) return Promise.resolve();
+      const touchBridge = historyReadOk || historyDirty;
+      if (!touchBridge) return Promise.resolve();
+      let raw;
+      try { raw = historySnapshotRaw(); } catch (error) { return Promise.resolve(); }
+      const api = statsApi();
+      if (api && api.utf8Bytes(raw) > api.KEY_LIMIT_BYTES) return Promise.resolve();
+      historyReadOk = true;
+      writeLocalRaw(HISTORY_KEY, raw);
+      const epoch = ++historyEpoch;
+      const job = saveQueue.then(() => {
+        if (epoch !== historyEpoch) return null;
+        return writeBridgeRaw(HISTORY_KEY, raw);
+      });
+      saveQueue = job.then(() => {}, () => {});
+      return job.then(() => {}, () => {});
     }
 
     function persistLobby() {
@@ -2308,11 +2785,75 @@
 
     function restorePlayers(list) {
       if (!Array.isArray(list)) return [];
-      return list.map((player) => ({
-        id: Number(player && player.id),
-        name: asText(player && player.name).trim().slice(0, 24),
-        score: Number(player && player.score) || 0
-      })).filter((player) => player.id && player.name);
+      return list.map((player) => {
+        const id = Number(player && player.id);
+        const name = asText(player && player.name).trim().slice(0, 80);
+        const first = asText(player && player.first).trim().slice(0, 40);
+        const last = asText(player && player.last).trim().slice(0, 40);
+        const pid = asText(player && player.pid).trim();
+        if (!id || !(name || first)) return null;
+        return {
+          id: id,
+          pid: pid.indexOf('p_') === 0 ? pid : '',
+          name: name || (first + ' ' + last).trim(),
+          first: first,
+          last: last,
+          score: Number(player && player.score) || 0
+        };
+      }).filter(Boolean);
+    }
+
+    function restoreSession(raw) {
+      if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string' || !Array.isArray(raw.events)) return null;
+      return {
+        id: raw.id,
+        start: Number(raw.start) || Date.now(),
+        end: Number(raw.end) || 0,
+        players: Array.isArray(raw.players) ? raw.players.filter((id) => typeof id === 'string') : [],
+        events: raw.events.filter((event) => event && typeof event === 'object'),
+        full: raw.full !== false
+      };
+    }
+
+    function normalizeRegistry(saved) {
+      if (!saved || saved.v !== 1 || !Array.isArray(saved.players)) return [];
+      return saved.players.map((player) => ({
+        id: asText(player && player.id).trim(),
+        first: asText(player && player.first).trim(),
+        last: asText(player && player.last).trim(),
+        created: Number(player && player.created) || 0
+      })).filter((player) => player.id.indexOf('p_') === 0 && player.first);
+    }
+
+    async function readStored(key, mark) {
+      const storage = persistentStore();
+      if (storage) {
+        try {
+          const value = await withTimeout(storage.get(key), STORAGE_TIMEOUT_MS);
+          mark(true);
+          if (value != null && value !== '') return value;
+        } catch (error) {
+          mark(false);
+        }
+      } else {
+        mark(false);
+      }
+      try {
+        return localStorage.getItem(key);
+      } catch (error) {
+        return null;
+      }
+    }
+
+    async function loadPlayers() {
+      const raw = await readStored(PLAYERS_KEY, (ok) => { playersReadOk = ok; });
+      registry = normalizeRegistry(parseSaved(raw));
+    }
+
+    async function loadHistory() {
+      const raw = await readStored(HISTORY_KEY, (ok) => { historyReadOk = ok; });
+      const api = statsApi();
+      historyDoc = api ? api.normalizeHistory(parseSaved(raw)) : { v: 1, games: [], archive: {} };
     }
 
     function restoreTracks(list) {
@@ -2358,13 +2899,17 @@
       if (!saved || typeof saved !== 'object' || saved.v !== 1 || inGamePhase(saved.phase)) return false;
       const players = restorePlayers(saved.players).map((player) => ({
         id: player.id,
+        pid: player.pid,
         name: player.name,
+        first: player.first,
+        last: player.last,
         score: 0
       }));
       state.players = players;
       const maxId = players.reduce((max, player) => Math.max(max, player.id), 0);
       state.nextId = Math.max(Number(saved.nextId) || 1, maxId + 1);
-      state.draftName = asText(saved.draftName).slice(0, 24);
+      state.draftName = asText(saved.draftName).slice(0, 80);
+      state.session = null;
       state.phase = 'setup';
       state.djId = null;
       state.round = null;
@@ -2418,8 +2963,9 @@
       state.round = validRound(saved.round, players) ? saved.round : null;
       state.picked = saved.picked && trackUriOf(saved.picked).indexOf('spotify:track:') === 0 ? saved.picked : null;
       state.results = restoreTracks(saved.results);
-      state.draftName = asText(saved.draftName).slice(0, 24);
+      state.draftName = asText(saved.draftName).slice(0, 80);
       state.draftQuery = asText(saved.draftQuery).slice(0, 200);
+      state.session = restoreSession(saved.session);
       state.guesserId = players.some((player) => player.id === saved.guesserId) ? saved.guesserId : null;
       state.error = asText(saved.error);
       state.info = asText(saved.info);
@@ -2600,6 +3146,29 @@
         requestAwake(true);
       }
       if (action === 'remove-player') await removePlayer(Number(button.dataset.id));
+      if (action === 'add-saved') await addSavedPlayer(button.dataset.pid);
+      if (action === 'new-player') openCreate();
+      if (action === 'cancel-create') {
+        state.creating = false;
+        state.error = '';
+        render();
+      }
+      if (action === 'open-players') {
+        state.overlay = 'players';
+        state.error = '';
+        render();
+      }
+      if (action === 'open-stats') {
+        state.statsPid = button.dataset.pid || '';
+        state.overlay = 'stats';
+        state.error = '';
+        render();
+      }
+      if (action === 'back-overlay') {
+        state.overlay = state.overlay === 'stats' ? 'players' : null;
+        state.error = '';
+        render();
+      }
       if (action === 'start') await startGame();
       if (action === 'reconnect') withBusy(reconnectInGame);
       if (action === 'refresh') withBusy(loadSpotifyStatus);
@@ -2687,11 +3256,12 @@
           wakeDismissed = false;
           requestAwake(true);
         }
-        if (form.dataset.action === 'add-player') addPlayer();
+        if (form.dataset.action === 'add-player') submitPlayerQuery();
+        if (form.dataset.action === 'create-player') createAndAdd();
         if (form.dataset.action === 'search') runSearch();
       });
       app.addEventListener('input', (event) => {
-        if (event.target.id === 'playerName' || event.target.id === 'searchQuery') {
+        if (event.target.id === 'playerName' || event.target.id === 'playerFirst' || event.target.id === 'playerLast' || event.target.id === 'searchQuery') {
           if (state.phase !== 'final') {
             wakeDismissed = false;
             requestAwake(true);
@@ -2701,7 +3271,10 @@
           state.draftName = event.target.value;
           lobbyDirty = true;
           persistLobby();
+          paintPlayerSuggest();
         }
+        if (event.target.id === 'playerFirst') state.draftFirst = event.target.value;
+        if (event.target.id === 'playerLast') state.draftLast = event.target.value;
         if (event.target.id === 'searchQuery') {
           state.draftQuery = event.target.value;
           persistGame();
@@ -2761,19 +3334,26 @@
       bindWakeVideo();
       bind();
       subscribe();
-      window.addEventListener('pagehide', () => { persistGame(); persistLobby(); });
+      window.addEventListener('pagehide', () => { persistGame(); persistLobby(); persistPlayers(); persistHistory(); });
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
           persistGame();
           persistLobby();
+          persistPlayers();
+          persistHistory();
         } else {
           syncScreenWake(false);
         }
       });
       try {
+        await loadPlayers();
+        await loadHistory();
         await restoreGame();
+        migrateRoster();
       } catch (error) {}
       saveReady = true;
+      if (playersDirty) persistPlayers();
+      if (lobbyDirty) persistLobby();
       if (spotifyApi()) {
         loadSpotifyStatus().then(afterStatus).catch((error) => { presentError(error); afterStatus(); });
       } else {
