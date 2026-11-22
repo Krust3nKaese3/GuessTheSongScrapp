@@ -33,7 +33,7 @@ Dashboard, Redirect-URI und SHA1 stehen in der OpenScr-Doku: [SPOTIFY.md](https:
 
 ## Regeln
 
-Alle sitzen im Kreis. Ein Handy geht reihum. Gespielt wird, bis jemand auf **Spiel beenden** tippt. Danach kommt der Endstand. Punkte gelten nur für diese Runde. Ein laufendes Spiel bleibt im OpenScr-Speicher erhalten, bis es mit **Spiel beenden** endet.
+Alle sitzen im Kreis. Ein Handy geht reihum. Gespielt wird, bis jemand auf **Spiel beenden** tippt. Danach kommt der Endstand. Die Punkte dieser Runde gelten bis zum Spielende. Dieselben Personen bleiben auf dem Handy gespeichert, ihre Allzeit-Statistik zählt über die Runden hinweg. Ein laufendes Spiel bleibt im OpenScr-Speicher erhalten, bis es mit **Spiel beenden** endet.
 
 Jede Runde:
 
@@ -74,7 +74,40 @@ Deshalb steht **storage** in den Berechtigungen. Ist sie erteilt und eine Runde 
 
 Ein Spiel, das schon über **Spiel beenden** auf dem Endstand liegt, wird nicht als laufende Runde wieder geöffnet. Das Home-Icon führt ohne weitere Frage zur Lobby: dieselben Namen bleiben stehen, Punkte und Rundenstand sind leer. Ein späteres Öffnen zeigt diese Lobby und nicht den Endstand.
 
-Im Speicher liegen nur Spieldaten dieser Runde. Keine Spotify-Client-ID, kein Secret und kein Token.
+Im Speicher liegen Spieldaten, die Spielerliste und die Statistik. Keine Spotify-Client-ID, kein Secret und kein Token. Die Bridge ist `window.OpenScrBridge`, ersatzweise `window.EveryAppBridge`.
+
+## Gespeicherte Spieler
+
+Die Liste gilt für dieses Handy und ist das gemeinsame Format mit Werwolf. Neu angelegte Personen bekommen Vor- und Nachname, beide Pflicht, getrimmt. Die Id bleibt stabil. In der Runde steht nur der Vorname. Kommt derselbe Vorname in dieser Runde mehrfach vor (Vergleich normalisiert), sehen alle Betroffenen `Vorname N.`. Sind auch die Initialen gleich, steht der volle Nachname.
+
+Normalisieren heißt: trim, Kleinbuchstaben, Diakritika weg (NFD, Combining Marks entfernt). Die Suche trifft Vorname, Nachname oder `Vorname Nachname`. Präfix-Treffer stehen vor Teiltreffern, danach alphabetisch. `ma` und `Bausch` finden Maximilian Bausch. Antippen übernimmt die gespeicherte Person. Wer schon in der Runde ist, erscheint nicht noch einmal.
+
+Die Logik steckt abhängigfrei in `players.js` (`normalize`, `search`, `displayNames`, `createPlayer`), damit Werwolf dieselbe Datei nutzen kann.
+
+Alte Lobby-Einträge, die nur einen Namen hatten, bleiben lesbar. Ein zweiteiliger Name wird in Vor- und Nachname geteilt, ein einteiliger bleibt Vorname. Die bisherige Sitz-Id in `songraten.lobby.v1` und `songraten.game.v1` bleibt eine Zahl, dazu kommt `pid` mit der stabilen Spieler-Id. Ein laufendes Spiel aus einer älteren Fassung lässt sich weiter öffnen. In die Allzeit-Statistik kommt es nur, wenn das Protokoll in dieser Fassung mit dem ersten Song begonnen hat.
+
+## Statistik
+
+Nach **Spiel beenden** schreibt das Handy ein kompaktes Protokoll, sofern mindestens ein Song gestartet wurde. Zielgröße 1 bis 3 KB pro Spiel. Alle angezeigten Werte werden daraus berechnet. Archiv-Summen sind die einzige zweite Form: wird der Schlüssel knapp, wandern die ältesten Spiele in Summen pro Spieler-Id. Die Ansicht addiert Archiv und Protokolle, neue Auswertungen gelten damit auch für ältere Spiele, soweit das Archiv die nötigen Summen hat.
+
+In der Lobby öffnet **Gespeicherte Spieler** die Liste. Ein Tipp zeigt die Allzeit-Statistik dieser Person: Punkte, Spiele, Siege (nur bei alleiniger Führung), als DJ aufgelegte Songs mit Anzahl, erratene Songs mit den noch einzeln vorliegenden Sekunden und dem Durchschnitt.
+
+## Speicher
+
+OpenScr legt Werte als Text ab, höchstens **256 KiB pro Schlüssel** (262144 Bytes). Quelle: [docs/BRIDGE_API.md](https://github.com/Krust3nKaese3/OpenScr/blob/main/docs/BRIDGE_API.md) („Werte: Text, höchstens 256 KiB“) und `src/bridge/allowlist.ts` (`STORAGE_LIMITS.maxValueBytes = 256 * 1024`, Prüfung in `assertStorageValue`).
+
+Eine Summe über alle Schlüssel setzt OpenScr in `StorageService.ts` nicht. Der Speicher läuft über `@react-native-async-storage/async-storage` **2.2.0** (`package.json` von OpenScr). Dessen Android-Standard ist eine SQLite-Datenbank von **6 MB** für die ganze Host-App: `android/config.gradle`, `getDatabaseSize()` („AsyncStorage has default size of 6MB“), und `ReactDatabaseSupplier.mMaximumDatabaseSize = AsyncStorage_db_size * 1024 * 1024`. OpenScr setzt `AsyncStorage_db_size_in_MB` im Repository nicht um. Die 6 MB teilen sich Host und alle OpenScrapps. Song raten hält das Protokoll deshalb unter der Schlüsselgrenze: ab etwa 192 KiB werden die ältesten Spiele ins Archiv gefaltet.
+
+Schlüssel:
+
+| Schlüssel | Inhalt |
+| --- | --- |
+| `songraten.game.v1` | laufende Runde, unverändert lesbar, zusätzlich `pid`, `first`, `last` und das laufende Protokoll |
+| `songraten.lobby.v1` | Namensliste der Lobby, Sitz-Id plus `pid` |
+| `songraten.players.v1` | `{"v":1,"players":[{"id":"p_<Zeit base36><4 base36>","first":"Maximilian","last":"Bausch","created":<ms>}]}` |
+| `songraten.history.v1` | `{"v":1,"games":[…],"archive":{…}}` |
+
+Ereignisse in einem Spiel, kurz gehalten: `r` Runde (DJ-Id, Spotify-Track-Id, Titel, Interpret), `b` Buzz (Spieler-Id, Sekunden seit Songstart), `v` Wertung (`ok`, Punkte, bei einem Treffer die Sekunden), `k` Überspringen, `d` Song zu Ende ohne Treffer, `z` Spielende. Archiv pro Spieler-Id: `points`, `games`, `wins`, `dj` und `hit` als Summen je Track.
 
 ## UX gegenüber der Rohfassung
 
@@ -136,8 +169,13 @@ GuessTheSongScrapp/
 ├── assets/sounds/   # buzzer.mp3, correct.mp3, wrong.mp3
 ├── openscr.json     # Manifest (OpenScr)
 ├── everyapp.json    # dasselbe Manifest, Fallback für ältere Builds
-├── index.html       # App, CSS und JavaScript inline
+├── players.js       # Spielerliste, gemeinsam mit Werwolf
+├── stats.js         # Protokoll und Allzeit-Statistik
+├── test/logic.test.js
+├── index.html       # App und CSS, Spielablauf inline
 └── README.md
 ```
+
+`node test/logic.test.js` prüft Suche, Anzeige und die Berechnung der Statistik einschließlich Archiv.
 
 Benötigte Berechtigungen: `spotify`, `vibration`, `storage`.
