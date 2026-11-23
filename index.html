@@ -3205,8 +3205,31 @@
       return null;
     }
 
-    function render() {
+    let renderHold = false;
+
+    function appTextField() {
+      const el = document.activeElement;
+      if (!el || !app.contains(el)) return null;
+      const tag = el.tagName;
+      if (tag !== 'INPUT' && tag !== 'TEXTAREA') return null;
+      if (tag === 'INPUT') {
+        const type = (el.getAttribute('type') || 'text').toLowerCase();
+        if (type === 'button' || type === 'submit' || type === 'checkbox' || type === 'radio' || type === 'file' || type === 'hidden' || type === 'range' || type === 'color') return null;
+      }
+      return el;
+    }
+
+    function render(fromField) {
       if (booting) return;
+      if (appTextField()) {
+        if (!fromField) {
+          renderHold = true;
+          return;
+        }
+        paintPlayerSuggest();
+        return;
+      }
+      renderHold = false;
       refreshLabels();
       const views = {
         setup: renderSetup,
@@ -4036,7 +4059,7 @@
           state.draftName = event.target.value;
           lobbyDirty = true;
           persistLobby();
-          paintPlayerSuggest();
+          render(true);
         }
         if (event.target.id === 'playerFirst') state.draftFirst = event.target.value;
         if (event.target.id === 'playerLast') state.draftLast = event.target.value;
@@ -4044,6 +4067,12 @@
           state.draftQuery = event.target.value;
           persistGame();
         }
+      });
+      app.addEventListener('focusout', () => {
+        setTimeout(() => {
+          if (!renderHold || appTextField()) return;
+          render();
+        }, 0);
       });
     }
 
