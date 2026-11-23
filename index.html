@@ -1325,8 +1325,24 @@
       return audioCtx;
     }
 
+    function isTypingTarget(event) {
+      const el = event && event.target;
+      if (!el || !el.closest) return false;
+      return Boolean(el.closest('input, textarea, select, [contenteditable="true"]'));
+    }
+
+    function focusedTypingField() {
+      const el = document.activeElement;
+      if (!el || el === document.body || el === document.documentElement) return null;
+      if (el.closest && el.closest('#wakeVideo, audio')) return null;
+      const tag = el.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return el;
+      if (el.isContentEditable) return el;
+      return null;
+    }
+
     function unlockBuzzer() {
-      if (isGuest()) return;
+      if (isGuest() || focusedTypingField()) return;
       const ctx = audioContext();
       if (ctx && ctx.state === 'suspended') {
         try { ctx.resume(); } catch (error) {}
@@ -3752,6 +3768,7 @@
     }
 
     function playWakeVideo() {
+      if (focusedTypingField()) return;
       const video = wakeVideoEl();
       if (!video) {
         setWakeDebug('pending');
@@ -3973,7 +3990,7 @@
       };
       app.addEventListener('pointerdown', (event) => {
         const button = event.target && event.target.closest && event.target.closest('[data-action="buzz"]');
-        if (!button) {
+        if (!button && !isTypingTarget(event)) {
           if (!isGuest()) {
             unlockBuzzer();
             primeBuzzer();
