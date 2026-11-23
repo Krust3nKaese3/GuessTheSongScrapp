@@ -17,3 +17,11 @@ assert.ok(wake.indexOf('focusedTypingField()') < wake.indexOf('video.play()'), '
 
 assert.ok(!/addEventListener\(\s*['"]resize['"]/.test(html));
 assert.ok(!/visualViewport/.test(html));
+
+const renderFn = html.slice(html.indexOf('function render(fromField)'), html.indexOf('let clockTimer'));
+assert.ok(renderFn.includes('appTextField()'), 'render prüft das fokussierte Feld');
+assert.ok(renderFn.indexOf('renderHold = true') < renderFn.indexOf('app.innerHTML'), 'bei Fokus kein innerHTML');
+assert.ok(renderFn.indexOf('paintPlayerSuggest()') < renderFn.indexOf('app.innerHTML'), 'Eingabe-Handler ersetzt nur die Vorschlagsliste');
+assert.ok(html.includes("app.addEventListener('focusout'"), 'zurückgestelltes Rendern bei focusout');
+const focusout = html.slice(html.indexOf("app.addEventListener('focusout'"), html.indexOf("app.addEventListener('focusout'") + 280);
+assert.ok(focusout.includes('appTextField()') && focusout.includes('render()'), 'nachholen nur wenn kein Feld mehr fokussiert ist');
