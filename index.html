@@ -3,33 +3,33 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#1a0d12">
+  <meta name="theme-color" content="#0B0B0F">
   <title>Song raten</title>
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { margin: 0; min-height: 100%; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: #14080c;
-      color: #fff8f4;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #0B0B0F;
+      color: #f4f4f5;
       padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     }
     [hidden] { display: none !important; }
     button, input { font: inherit; color: inherit; }
     button { touch-action: manipulation; cursor: pointer; }
     button:disabled { opacity: 0.45; cursor: not-allowed; }
-    #app { max-width: 520px; margin: 0 auto; min-height: 100vh; padding: 16px 16px 28px; }
-    header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
-    h1 { font-size: 30px; line-height: 1.1; margin: 0; }
-    h2 { font-size: 22px; line-height: 1.2; margin: 0 0 8px; }
+    #app { max-width: 520px; margin: 0 auto; min-height: 100vh; padding: 20px 18px 32px; }
+    header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
+    h1 { font-size: 34px; line-height: 1.05; margin: 0; font-weight: 760; letter-spacing: -0.03em; }
+    h2 { font-size: 22px; line-height: 1.2; margin: 0 0 8px; font-weight: 700; }
     p { margin: 0; }
-    .eyebrow { margin: 0 0 4px; letter-spacing: 0.08em; text-transform: uppercase; font-size: 12px; color: #ffb089; font-weight: 700; }
-    .lead, .hint { color: #f0d2c8; line-height: 1.45; }
+    .eyebrow { margin: 0 0 4px; letter-spacing: 0.08em; text-transform: uppercase; font-size: 12px; color: #A3E635; font-weight: 700; }
+    .lead, .hint { color: #a1a1aa; line-height: 1.45; }
     .hint { font-size: 15px; }
-    .stack { display: flex; flex-direction: column; gap: 12px; }
+    .stack { display: flex; flex-direction: column; gap: 14px; }
     .card {
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #17171c;
+      border: 1px solid rgba(255, 255, 255, 0.06);
       border-radius: 18px;
       padding: 14px;
     }
@@ -49,36 +49,39 @@
       width: 100%;
       min-height: 52px;
       border-radius: 14px;
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      background: #2a1218;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #141418;
       padding: 0 14px;
       font-size: 17px;
     }
+    input[type="text"]::placeholder { color: #71717a; }
     .btn {
       min-height: 56px;
       border: 0;
-      border-radius: 16px;
+      border-radius: 999px;
       padding: 14px 16px;
-      background: #fff4ec;
-      color: #2a1014;
+      background: #A3E635;
+      color: #111;
       font-size: 18px;
-      font-weight: 800;
+      font-weight: 750;
     }
     .btn:active { transform: scale(0.98); }
-    .btn.secondary { background: transparent; color: #fff8f4; border: 2px solid rgba(255, 255, 255, 0.28); }
-    .btn.ghost { background: rgba(255, 255, 255, 0.08); color: #fff8f4; min-height: 48px; font-size: 16px; }
-    .btn.good { background: #b6f5cf; color: #06341c; }
-    .btn.bad { background: #ffd0c8; color: #4d100c; }
-    .btn:disabled { opacity: 1; background: #3a2a30; color: #b9a39c; }
+    .btn.secondary { background: transparent; color: #f4f4f5; border: 2px solid rgba(255, 255, 255, 0.18); }
+    .btn.ghost { background: #1c1c22; color: #f4f4f5; min-height: 48px; font-size: 16px; border-radius: 14px; }
+    .btn.good { background: #A3E635; color: #111; }
+    .btn.bad { background: #3a2024; color: #ffd0c8; }
+    .btn:disabled { opacity: 1; background: #2a2a32; color: #71717a; }
     .btn.small { min-height: 44px; padding: 8px 12px; font-size: 15px; }
     .linkish {
       background: transparent;
       border: 0;
-      color: #ffb089;
+      color: #e4e4e7;
       min-height: 44px;
-      font-weight: 700;
+      font-weight: 650;
       padding: 8px;
+      text-align: center;
     }
+    .stats-link { font-size: 16px; color: #d4d4d8; }
     .player, .track, .choice {
       width: 100%;
       text-align: left;
@@ -92,7 +95,7 @@
       justify-content: space-between;
       gap: 10px;
     }
-    .choice.selected, .track.selected { border-color: #ffb089; background: rgba(255, 176, 137, 0.14); }
+    .choice.selected, .track.selected { border-color: #A3E635; background: rgba(163, 230, 53, 0.12); }
     .track.started { border-color: rgba(255, 224, 138, 0.55); }
     .played-tag {
       flex: 0 0 auto;
@@ -105,8 +108,9 @@
       letter-spacing: 0.04em;
       text-transform: uppercase;
     }
-    .player-name, .track-title { font-size: 18px; font-weight: 800; }
-    .track-meta { display: block; color: #f0d2c8; font-size: 14px; font-weight: 600; margin-top: 2px; }
+    .player-name, .track-title { font-size: 18px; font-weight: 700; }
+    .track-meta { display: block; color: #a1a1aa; font-size: 14px; font-weight: 600; margin-top: 2px; }
+    .hit { color: #A3E635; font-weight: 750; }
     .icon-btn {
       width: 48px;
       height: 48px;
@@ -132,50 +136,113 @@
       align-items: center;
       font-size: 15px;
     }
-    .chip.is-dj { outline: 2px solid #ffb089; }
+    .chip.is-dj { outline: 2px solid #A3E635; }
     .chip-score { font-weight: 800; }
-    .chip-role { font-size: 11px; letter-spacing: 0.06em; color: #ffb089; font-weight: 800; }
-    .stage { min-height: 46vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; text-align: center; }
-    .eq { display: flex; align-items: flex-end; gap: 6px; height: 36px; }
-    .eq span {
-      width: 8px;
-      height: 12px;
-      border-radius: 99px;
-      background: #ffb089;
-      animation: bounce 0.9s ease-in-out infinite;
+    .chip-role { font-size: 11px; letter-spacing: 0.06em; color: #A3E635; font-weight: 800; }
+    .roster { display: flex; flex-wrap: wrap; gap: 8px; }
+    .roster .player {
+      width: auto;
+      min-height: 40px;
+      border-radius: 999px;
+      padding: 4px 4px 4px 14px;
+      background: #1c1c22;
+      border: 1px solid rgba(255, 255, 255, 0.08);
     }
-    .eq span:nth-child(2) { animation-delay: 0.15s; }
-    .eq span:nth-child(3) { animation-delay: 0.3s; }
-    .eq span:nth-child(4) { animation-delay: 0.45s; }
+    .roster .player-name { font-size: 15px; font-weight: 650; }
+    .roster .icon-btn { width: 32px; height: 32px; flex-basis: 32px; border-radius: 999px; background: transparent; font-size: 14px; color: #d4d4d8; }
+    .field-label { font-size: 15px; color: #d4d4d8; margin: 8px 0 0; }
+    .suggest:empty { display: none; }
+    .suggest {
+      background: #17171c;
+      border-radius: 16px;
+      overflow: hidden;
+      gap: 0;
+    }
+    .suggest .choice {
+      border: 0;
+      border-radius: 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      background: transparent;
+      min-height: 52px;
+    }
+    .suggest .choice:last-child { border-bottom: 0; }
+    .suggest .hint { padding: 12px 14px; }
+    .stage { min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 18px; text-align: center; padding-top: 8px; }
+    .round-head { display: flex; align-items: center; justify-content: center; gap: 14px; }
+    .round-label { font-size: 20px; font-weight: 650; color: #f4f4f5; }
+    .timer-ring {
+      --p: 0;
+      width: 64px;
+      height: 64px;
+      position: relative;
+      display: grid;
+      place-items: center;
+    }
+    .timer-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+    .timer-ring circle { fill: none; stroke: #2a2a32; stroke-width: 4; }
+    .timer-ring .prog {
+      stroke: #A3E635;
+      stroke-linecap: round;
+      stroke-dasharray: calc(var(--p) * 113.1) 113.1;
+    }
+    #roundClock { position: relative; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .eq { display: flex; align-items: center; justify-content: center; gap: 4px; height: 72px; width: min(92vw, 420px); }
+    .eq span {
+      width: 4px;
+      height: 14px;
+      border-radius: 99px;
+      background: #A3E635;
+      transform-origin: center;
+      animation: bounce 1.05s ease-in-out infinite;
+    }
+    .eq span:nth-child(odd) { animation-duration: 0.85s; }
+    .eq span:nth-child(3n) { animation-duration: 1.25s; height: 22px; }
+    .eq span:nth-child(4n) { animation-delay: 0.2s; }
+    .eq span:nth-child(5n) { animation-delay: 0.35s; }
     @keyframes bounce {
-      0%, 100% { height: 10px; }
-      50% { height: 34px; }
+      0%, 100% { transform: scaleY(0.45); }
+      50% { transform: scaleY(2.4); }
     }
     .buzzer {
-      width: min(78vw, 320px);
-      height: min(78vw, 320px);
+      width: min(68vw, 280px);
+      height: min(68vw, 280px);
       border-radius: 50%;
-      border: 8px solid #ffd2cc;
-      background: radial-gradient(circle at 35% 30%, #ff6d62, #e10600 46%, #7a0010);
-      color: white;
-      font-size: 44px;
-      font-weight: 900;
-      letter-spacing: 0.04em;
-      box-shadow: 0 12px 0 #5c0010, 0 18px 28px rgba(0, 0, 0, 0.4);
+      border: 0;
+      background: #A3E635;
+      color: #111;
+      font-size: 42px;
+      font-weight: 850;
+      letter-spacing: 0.02em;
+      box-shadow: 0 0 28px rgba(163, 230, 53, 0.55), 0 0 72px rgba(163, 230, 53, 0.28);
       user-select: none;
       touch-action: manipulation;
     }
-    .buzzer:active { transform: translateY(8px); box-shadow: 0 4px 0 #5c0010; }
+    .buzzer:active { transform: scale(0.97); }
+    .buzzer:disabled { background: #3f4a28; color: #111; box-shadow: none; }
+    .score-card {
+      width: min(100%, 360px);
+      background: #17171c;
+      border-radius: 18px;
+      padding: 8px 18px;
+    }
+    .score-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 11px 0;
+      font-size: 17px;
+    }
+    .host-note { color: #a1a1aa; font-size: 15px; text-align: center; }
     .reveal-title { font-size: 34px; line-height: 1.15; margin: 0; overflow-wrap: anywhere; }
-    .reveal-artist { font-size: 22px; color: #ffb089; margin-top: 6px; overflow-wrap: anywhere; }
+    .reveal-artist { font-size: 22px; color: #A3E635; margin-top: 6px; overflow-wrap: anywhere; }
     .rank { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08); font-size: 18px; }
     .rank strong { font-size: 22px; }
     .suggest { display: flex; flex-direction: column; gap: 8px; }
     .stat-list { display: flex; flex-direction: column; gap: 10px; }
     .stat-item { padding-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
     .stat-item:last-child { border-bottom: 0; padding-bottom: 0; }
-    details { color: #f0d2c8; }
-    summary { min-height: 44px; display: flex; align-items: center; font-weight: 800; color: #fff8f4; }
+    details { color: #a1a1aa; }
+    summary { min-height: 44px; display: flex; align-items: center; font-weight: 700; color: #f4f4f5; }
     ol { margin: 8px 0 0; padding-left: 18px; }
     li { margin: 6px 0; }
     .modal {
@@ -191,7 +258,7 @@
     }
     .modal .card { width: min(520px, 100%); }
     @media (prefers-reduced-motion: reduce) {
-      .eq span { animation: none; height: 18px; }
+      .eq span { animation: none; transform: none; height: 22px; }
     }
     #wakeVideo {
       position: fixed;
@@ -210,7 +277,7 @@
       margin: 0;
       font-size: 11px;
       line-height: 1.2;
-      color: rgba(255, 248, 244, 0.62);
+      color: rgba(244, 244, 245, 0.55);
       pointer-events: none;
     }
     .mp-mark { margin: 2px 0 0; font-size: 13px; }
@@ -1706,10 +1773,28 @@
         button.dataset.pid = player.id;
         const name = document.createElement('span');
         name.className = 'player-name';
-        name.textContent = (player.first + ' ' + player.last).trim() || player.first;
+        const full = (player.first + ' ' + player.last).trim() || player.first;
+        paintMatch(name, full, state.draftName);
         button.appendChild(name);
         box.appendChild(button);
       });
+    }
+
+    function paintMatch(node, full, query) {
+      const q = String(query || '').trim();
+      const lower = full.toLocaleLowerCase('de');
+      const needle = q.toLocaleLowerCase('de');
+      const at = needle ? lower.indexOf(needle) : -1;
+      if (at < 0) {
+        node.textContent = full;
+        return;
+      }
+      node.appendChild(document.createTextNode(full.slice(0, at)));
+      const mark = document.createElement('span');
+      mark.className = 'hit';
+      mark.textContent = full.slice(at, at + needle.length);
+      node.appendChild(mark);
+      node.appendChild(document.createTextNode(full.slice(at + needle.length)));
     }
 
     function beginSession() {
@@ -2701,7 +2786,7 @@
         : state.phase === 'final' ? homeButtonHtml() : '';
       return `<header>
         <div>
-          <p class="eyebrow">Partyspiel</p>
+          ${state.phase === 'setup' ? '' : '<p class="eyebrow">Partyspiel</p>'}
           <h1>Song raten</h1>
           ${netMarkHtml()}
         </div>
@@ -2783,34 +2868,31 @@
 
     function renderSetup() {
       const players = state.players.length
-        ? listedPlayers().map((player) => playerRowHtml(player)).join('')
+        ? `<div class="roster">${listedPlayers().map((player) => playerRowHtml(player)).join('')}</div>`
         : '<p class="hint">Noch niemand eingetragen.</p>';
       return `${headerHtml()}
         <div class="stack">
           ${bannersHtml()}
         ${reconnectHtml()}
-          <p class="lead">Ein Handy, eine Runde, eine Box. Alle tragen sich ein. Der DJ sucht den Song, die anderen raten. Der Ton kommt aus der Spotify-App über den Lautsprecher. Multiplayer legt dasselbe Spiel ins WLAN: Spotify bleibt auf dem Host.</p>
+          <p class="field-label">Spieler</p>
+          <form class="stack" data-action="add-player">
+            <input id="playerName" type="text" maxlength="80" placeholder="Name eingeben" autocomplete="off" autocapitalize="words" value="${esc(state.draftName)}" aria-label="Name suchen">
+          </form>
+          <div id="playerSuggestions" class="suggest"></div>
+          ${namingFormHtml()}
+          ${players}
+          <button type="button" class="btn" data-action="start" ${state.busy || state.players.length < 2 ? 'disabled' : ''}>Spiel starten</button>
+          <button type="button" class="linkish stats-link" data-action="open-players" aria-label="Gespeicherte Spieler">Statistik</button>
           ${isGuest() ? '<section class="banner info">Spotify und alle Töne laufen nur auf dem Host.</section>' : spotifyCardHtml()}
-          <section class="card stack">
-            <h2>Mitspieler</h2>
-            <form class="stack" data-action="add-player">
-              <input id="playerName" type="text" maxlength="80" placeholder="Name suchen" autocomplete="off" autocapitalize="words" value="${esc(state.draftName)}" aria-label="Name suchen">
-            </form>
-            <div id="playerSuggestions" class="suggest"></div>
-            ${namingFormHtml()}
-            ${players}
-            <button type="button" class="btn" data-action="start" ${state.busy || state.players.length < 2 ? 'disabled' : ''}>Spiel starten</button>
-            <button type="button" class="btn secondary" data-action="multiplayer">Multiplayer</button>
-            ${multiplayerCardHtml()}
-            <button type="button" class="btn ghost" data-action="open-players">Gespeicherte Spieler</button>
-            <p class="hint">Mindestens zwei Personen. Tippe einen gespeicherten Namen an oder leg Vor- und Nachname neu an. In der Runde steht der Vorname, bei gleichem Vornamen mit Nachnamen-Kürzel. Punkte dieser Runde gelten bis „Spiel beenden“. Die Allzeit-Statistik bleibt auf diesem Handy.</p>
-          </section>
+          <button type="button" class="btn secondary" data-action="multiplayer">Multiplayer</button>
+          ${multiplayerCardHtml()}
+          <p class="hint">Mindestens zwei Personen. Tippe einen gespeicherten Namen an oder leg Vor- und Nachname neu an. In der Runde steht der Vorname, bei gleichem Vornamen mit Nachnamen-Kürzel. Punkte dieser Runde gelten bis „Spiel beenden“. Die Allzeit-Statistik bleibt auf diesem Handy.</p>
           <details class="card">
             <summary>Regeln kurz</summary>
             <ol>
               <li>DJ auswählen und bestätigen.</li>
               <li>Song suchen und auf Los tippen. Er startet von vorne. Jeder Song nur einmal pro Spiel.</li>
-              <li>Bei „Stopp“ den roten Buzzer drücken. Pause und Buzzer starten beim Auflegen des Fingers.</li>
+              <li>Bei „Stopp“ den Buzzer drücken. Pause und Buzzer starten beim Auflegen des Fingers.</li>
               <li>Wer geraten hat (nicht der DJ), dann Ja oder Nein.</li>
               <li>Richtig: +2, Erfolgs-Ton, der Song blendet wieder ein, dann Auflösung.</li>
               <li>Falsch: −1, Fehler-Ton, danach läuft der Song sofort in normaler Lautstärke weiter.</li>
@@ -2880,18 +2962,38 @@
       </div>`;
     }
 
+    function waveHtml() {
+      let bars = '';
+      for (let i = 0; i < 28; i += 1) bars += '<span></span>';
+      return `<div class="eq" aria-hidden="true">${bars}</div>`;
+    }
+
+    function playingScoresHtml() {
+      const ranked = listedPlayers().slice().sort((a, b) => b.score - a.score || labelOf(a).localeCompare(labelOf(b), 'de'));
+      return `<div class="score-card" aria-label="Punktestand">${ranked.map((player, index) => `
+        <div class="score-row"><span>${index + 1}. ${esc(labelOf(player))}</span><span>${formatScore(player.score)}</span></div>`).join('')}</div>`;
+    }
+
     function renderPlaying() {
       const dj = state.round && playerById(state.round.djId);
+      const roundNo = Math.max(1, Number(state.songsStarted) || 1);
       return `${headerHtml()}<div class="stack">
         ${bannersHtml()}
         ${reconnectHtml()}
-        ${scoreboardHtml()}
         ${state.notice ? `<div class="banner info">${esc(state.notice)}</div>` : ''}
         <section class="stage">
-          <div class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-          <p class="eyebrow">DJ ${esc(dj ? labelOf(dj) : '')}</p>
-          <p id="playState" class="lead" aria-live="polite">${state.transportPaused ? 'Die Wiedergabe ist pausiert. Titel und Interpret bleiben verdeckt.' : 'Der Song läuft über die Box. Titel und Interpret bleiben verdeckt.'}</p>
-          <button type="button" class="buzzer" data-action="buzz" ${state.holdingSfx || (net.role && net.localLock) ? 'disabled' : ''} aria-label="Stopp, Song anhalten">STOPP</button>
+          <div class="round-head">
+            <p class="round-label">Runde ${roundNo}</p>
+            <div class="timer-ring" id="roundRing" style="--p:0">
+              <svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="18"></circle><circle class="prog" cx="22" cy="22" r="18"></circle></svg>
+              <span id="roundClock">0:00</span>
+            </div>
+          </div>
+          ${waveHtml()}
+          <p id="playState" class="hint" aria-live="polite">${state.transportPaused ? 'Die Wiedergabe ist pausiert. Titel und Interpret bleiben verdeckt.' : 'Der Song läuft. Titel und Interpret bleiben verdeckt.'} DJ ${esc(dj ? labelOf(dj) : '')}</p>
+          <button type="button" class="buzzer" data-action="buzz" ${state.holdingSfx || (net.role && net.localLock) ? 'disabled' : ''} aria-label="Stopp, Song anhalten">BUZZ</button>
+          ${playingScoresHtml()}
+          ${net.role ? '<p class="host-note">Musik läuft auf dem Host-Handy</p>' : ''}
           <button type="button" id="resumeBtn" class="btn secondary" data-action="resume" ${state.transportPaused && !state.holdingSfx ? '' : 'hidden'}>Fortsetzen</button>
           ${state.round && state.round.unconfirmed && !isGuest() ? `<div id="unconfirmed" class="stack">
             <p class="banner warn">Spotify spielt den Song noch nicht. Bitte die Box und die Verbindung prüfen. Der Titel bleibt verdeckt.</p>
@@ -3109,6 +3211,51 @@
       paintPlayerSuggest();
       persistGame();
       syncScreenWake(false);
+      syncRoundClock();
+    }
+
+    let clockTimer = null;
+
+    function formatClock(ms) {
+      const total = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+      const min = Math.floor(total / 60);
+      const sec = total % 60;
+      return min + ':' + String(sec).padStart(2, '0');
+    }
+
+    function roundElapsedMs() {
+      const round = state.round;
+      if (!round) return 0;
+      const pos = Number(round.positionMs) || 0;
+      if (state.transportPaused || !round.startedAt) return pos;
+      return Math.max(pos, Date.now() - round.startedAt);
+    }
+
+    function paintClock() {
+      const el = document.getElementById('roundClock');
+      const ring = document.getElementById('roundRing');
+      if (!el || state.phase !== 'playing' || !state.round) {
+        if (clockTimer) {
+          clearInterval(clockTimer);
+          clockTimer = null;
+        }
+        return;
+      }
+      const ms = roundElapsedMs();
+      el.textContent = formatClock(ms);
+      const dur = Number(state.round.durationMs) || 0;
+      const p = dur > 0 ? Math.max(0, Math.min(1, ms / dur)) : 0;
+      if (ring) ring.style.setProperty('--p', String(p));
+    }
+
+    function syncRoundClock() {
+      if (state.phase === 'playing' && state.round) {
+        paintClock();
+        if (!clockTimer) clockTimer = setInterval(paintClock, 250);
+      } else if (clockTimer) {
+        clearInterval(clockTimer);
+        clockTimer = null;
+      }
     }
 
     function persistentStore() {
@@ -3566,11 +3713,11 @@
 
     function keepAwakeControls() {
       const pairs = [
-        ['wake', 'enable', 'disable', false],
-        ['wake', 'acquire', 'release', false],
-        ['screen', 'keepAwake', 'release', true],
+        ['keepAwake', 'acquire', 'release', false],
         ['keepAwake', 'enable', 'disable', false],
-        ['keepAwake', 'acquire', 'release', false]
+        ['wake', 'acquire', 'release', false],
+        ['wake', 'enable', 'disable', false],
+        ['screen', 'keepAwake', 'release', true]
       ];
       for (let i = 0; i < pairs.length; i += 1) {
         const bag = bridgeBag(pairs[i][0]);
@@ -3689,7 +3836,7 @@
     }
 
     function screenStayOn() {
-      return !wakeDismissed && state.phase !== 'final';
+      return !wakeDismissed && IN_GAME_PHASES.indexOf(state.phase) !== -1;
     }
 
     function syncScreenWake(fromGesture) {
@@ -3718,7 +3865,7 @@
       if (action === 'end-confirm' || action === 'home') {
         wakeDismissed = true;
         releaseAwake();
-      } else if (state.phase !== 'final') {
+      } else if (IN_GAME_PHASES.indexOf(state.phase) !== -1) {
         wakeDismissed = false;
         requestAwake(true);
       }
@@ -3848,7 +3995,7 @@
         const form = event.target;
         if (!form || !form.dataset) return;
         event.preventDefault();
-        if (state.phase !== 'final') {
+        if (IN_GAME_PHASES.indexOf(state.phase) !== -1) {
           wakeDismissed = false;
           requestAwake(true);
         }
@@ -3863,7 +4010,7 @@
       });
       app.addEventListener('input', (event) => {
         if (event.target.id === 'playerName' || event.target.id === 'playerFirst' || event.target.id === 'playerLast' || event.target.id === 'searchQuery') {
-          if (state.phase !== 'final') {
+          if (IN_GAME_PHASES.indexOf(state.phase) !== -1) {
             wakeDismissed = false;
             requestAwake(true);
           }
