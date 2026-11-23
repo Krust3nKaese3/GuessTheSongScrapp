@@ -2066,7 +2066,21 @@
       render();
     }
 
+    function backNameActs() {
+      if (net.role && (state.phase === 'search' || state.phase === 'mark') && isGuest()) return true;
+      if (state.phase === 'mark' || state.phase === 'search' || state.phase === 'endedWho') return true;
+      if (state.phase === 'dj') return Boolean(state.djId || net.djSent);
+      if (state.phase === 'guess') return Boolean(state.guesserId);
+      return false;
+    }
+
+    function backNameButtonHtml() {
+      if (!backNameActs()) return '';
+      return '<button type="button" class="btn ghost" data-action="back-name">Zurück</button>';
+    }
+
     function backName() {
+      if (!backNameActs()) return;
       if (net.role && (state.phase === 'search' || state.phase === 'mark') && isGuest()) {
         sendHost({ t: 'back' });
         return;
@@ -2840,7 +2854,7 @@
                 <button type="button" class="mark good" data-action="judge-yes" aria-label="Richtig">✓</button>
                 <button type="button" class="mark bad" data-action="judge-no" aria-label="Falsch">✗</button>
               </div>`}
-          <button type="button" class="btn ghost" data-action="back-name">Zurück</button>
+          ${backNameButtonHtml()}
           <button type="button" class="btn ghost" data-action="mistake">Versehentlich gedrückt</button>
         </section>
       </div>`;
@@ -3055,8 +3069,8 @@
         ${scoreboardHtml()}
         <section class="stack">
           <h2>Wer ist der DJ?</h2>
-          <button type="button" class="btn ghost" data-action="back-name">Zurück</button>
-          <p class="hint">Handy weitergeben. Nur die Person, die den Song aussucht, bestätigt hier ihren Namen. Falscher Name? Zurück, dann neu wählen.</p>
+          ${backNameButtonHtml()}
+          <p class="hint">Handy weitergeben. Nur die Person, die den Song aussucht, bestätigt hier ihren Namen.${state.djId || net.djSent ? ' Falscher Name? Zurück, dann neu wählen.' : ''}</p>
           ${choices}
           <button type="button" class="btn" data-action="confirm-dj" ${state.djId ? '' : 'disabled'}>Ich bin der DJ</button>
           ${namesFoldHtml()}
@@ -3091,7 +3105,7 @@
         ${scoreboardHtml()}
         <section class="stack">
           <h2>Song aussuchen</h2>
-          <button type="button" class="btn ghost" data-action="back-name">Zurück</button>
+          ${backNameButtonHtml()}
           <p class="hint">DJ: ${esc(dj ? labelOf(dj) : '')}. Nur du solltest diese Liste sehen. Falsche Person? Zurück, dann neu wählen.</p>
           <form class="stack" data-action="search">
             <input id="searchQuery" type="text" placeholder="Titel oder Interpret" autocomplete="off" value="${esc(state.draftQuery)}" aria-label="Suche">
@@ -3194,8 +3208,8 @@
         <section class="stack">
           ${net.role && buzzLitNow() ? buzzButtonHtml() : ''}
           <h2>Wer hat geraten?</h2>
-          <button type="button" class="btn ghost" data-action="back-name">Zurück</button>
-          <p class="hint">Der DJ zählt nicht. Erst die Person wählen, dann Ja oder Nein. Falscher Name? Zurück, dann neu wählen.</p>
+          ${backNameButtonHtml()}
+          <p class="hint">Der DJ zählt nicht. Erst die Person wählen, dann Ja oder Nein.${state.guesserId ? ' Falscher Name? Zurück, dann neu wählen.' : ''}</p>
           ${guessListHtml()}
           ${net.role ? '<p class="hint">Ein Tipp auf den Namen gilt. Danach sehen alle nur Haken und Kreuz.</p>' : `<div class="row">
             <button type="button" class="btn good" data-action="judge-yes" ${selected ? '' : 'disabled'}>Ja, richtig</button>
@@ -3228,7 +3242,7 @@
         ${scoreboardHtml()}
         <section class="stack">
           <h2>Wer hat ihn erraten?</h2>
-          <button type="button" class="btn ghost" data-action="back-name">Zurück</button>
+          ${backNameButtonHtml()}
           <p class="hint">Der DJ bekommt den Punkt nicht. Falscher Name? Zurück, dann neu wählen.</p>
           ${guessListHtml()}
           <button type="button" class="btn" data-action="ended-confirm" ${selected ? '' : 'disabled'}>Punkt geben (+2)</button>
