@@ -2813,21 +2813,6 @@
       </section>`;
     }
 
-    function renderSearchWait() {
-      const dj = playerById(state.djId);
-      return `${headerHtml()}<div class="stack">
-        ${bannersHtml()}
-        ${scoreboardHtml()}
-        <section class="stage">
-          <p class="eyebrow">DJ ${esc(dj ? labelOf(dj) : '')}</p>
-          <h2>DJ sucht</h2>
-          <p class="lead">Titel, Cover und Empfehlungen bleiben auf dem suchenden Handy.</p>
-          <button type="button" class="btn" data-action="claim-search">Hier suchen</button>
-          <button type="button" class="btn ghost" data-action="back-name">Zurück</button>
-        </section>
-      </div>`;
-    }
-
     function renderGuessWait() {
       return `${headerHtml()}<div class="stack">
         ${bannersHtml()}
@@ -3416,7 +3401,6 @@
       };
       let view = overlayView() || views[state.phase] || renderSetup;
       if (browserGuestShell() && !overlayView() && (net.resumeError || state.phase === 'setup')) view = renderGuestBoot;
-      if (!overlayView() && net.role && state.phase === 'search' && net.searcherId !== net.selfId) view = renderSearchWait;
       if (!overlayView() && net.role && state.phase === 'guess' && net.buzzDevice !== net.selfId) {
         view = net.pressedBuzz ? renderPlaying : renderGuessWait;
       }
