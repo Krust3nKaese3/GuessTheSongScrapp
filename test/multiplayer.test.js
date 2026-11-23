@@ -92,4 +92,64 @@ const kept = mp.normalizeOrder({ v: 1, locked: ['p_a', ''], seen: ['p_b'] });
 assert.deepStrictEqual(kept.locked, ['p_a']);
 assert.deepStrictEqual(mp.normalizeOrder(null), { v: 1, locked: [], seen: [] });
 
+assert.strictEqual(mp.isBrowserGuest(null), false);
+assert.strictEqual(mp.isBrowserGuest({}), false);
+assert.strictEqual(mp.isBrowserGuest({ guest: false }), false);
+assert.strictEqual(mp.isBrowserGuest({ guest: 'true' }), false);
+assert.strictEqual(mp.isBrowserGuest({ guest: true }), true);
+
+const lateFlags = [];
+let lateBridge = { guest: false, multiplayer: { onResumed: function (fn) { lateBridge._resume = fn; } } };
+const lateTimers = [];
+const lateDoc = {
+  addEventListener: function (name, fn) {
+    assert.strictEqual(name, 'DOMContentLoaded');
+    this.fn = fn;
+  }
+};
+mp.armGuestRetry({
+  getBridge: function () { return lateBridge; },
+  document: lateDoc,
+  setTimeout: function (fn) { lateTimers.push(fn); return lateTimers.length; },
+  tries: 4,
+  gap: 20
+}, function (guest) { lateFlags.push(guest); });
+assert.strictEqual(lateFlags[0], false);
+lateDoc.fn();
+assert.strictEqual(lateFlags[lateFlags.length - 1], false);
+lateBridge.guest = true;
+lateTimers[0]();
+assert.strictEqual(lateFlags[lateFlags.length - 1], true);
+
+const afterLoad = [];
+let held = null;
+mp.armGuestRetry({
+  getBridge: function () { return held; },
+  document: { addEventListener: function () {} },
+  setTimeout: function (fn) { fn(); return 1; },
+  tries: 2,
+  gap: 1
+}, function (guest) { afterLoad.push(guest); });
+assert.ok(afterLoad.indexOf(false) !== -1);
+held = { guest: true };
+assert.strictEqual(mp.isBrowserGuest(held), true);
+
+const resumed = [];
+const shim = {
+  guest: false,
+  multiplayer: {
+    onResumed: function (fn) { this.fn = fn; }
+  }
+};
+mp.armGuestRetry({
+  getBridge: function () { return shim; },
+  document: { addEventListener: function () {} },
+  setTimeout: function () { return 0; },
+  tries: 0,
+  gap: 1
+}, function (guest) { resumed.push(guest); });
+shim.guest = true;
+shim.multiplayer.fn();
+assert.strictEqual(resumed[resumed.length - 1], true);
+
 console.log('multiplayer ok');

@@ -248,6 +248,51 @@
     return { v: 1, locked: list(raw.locked), seen: list(raw.seen) };
   }
 
+  function isBrowserGuest(bridge) {
+    return Boolean(bridge && bridge.guest === true);
+  }
+
+  function armGuestRetry(env, onSee) {
+    const opts = env || {};
+    const getBridge = typeof opts.getBridge === 'function' ? opts.getBridge : function () { return null; };
+    const setTimer = opts.setTimeout || setTimeout;
+    const max = opts.tries == null ? 12 : opts.tries;
+    const gap = opts.gap == null ? 200 : opts.gap;
+    let tries = 0;
+    let hooked = false;
+    let stopped = false;
+
+    function bridgeNow() {
+      try { return getBridge() || null; } catch (error) { return null; }
+    }
+
+    function see() {
+      if (stopped) return false;
+      const bridge = bridgeNow();
+      const guest = isBrowserGuest(bridge);
+      const mp = bridge && bridge.multiplayer;
+      if (!hooked && opts.hookResume !== false && mp && typeof mp.onResumed === 'function') {
+        hooked = true;
+        try { mp.onResumed(function () { see(); }); } catch (error) {}
+      }
+      try { onSee(guest); } catch (error) {}
+      return guest;
+    }
+
+    function tick() {
+      if (stopped || see() || tries >= max) return;
+      tries += 1;
+      setTimer(tick, gap);
+    }
+
+    const doc = opts.document;
+    if (doc && typeof doc.addEventListener === 'function') {
+      doc.addEventListener('DOMContentLoaded', see);
+    }
+    tick();
+    return function stop() { stopped = true; };
+  }
+
   return {
     MAX_BYTES: MAX_BYTES,
     TIE_MS: TIE_MS,
@@ -271,6 +316,8 @@
     shareState: shareState,
     pack: pack,
     emptyOrder: emptyOrder,
-    normalizeOrder: normalizeOrder
+    normalizeOrder: normalizeOrder,
+    isBrowserGuest: isBrowserGuest,
+    armGuestRetry: armGuestRetry
   };
 });
