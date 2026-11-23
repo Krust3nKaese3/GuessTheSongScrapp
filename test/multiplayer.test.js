@@ -33,6 +33,12 @@ mp.takeBuzz(close, { device: 'host', seq: 1, at: 3000 }, 10);
 mp.takeBuzz(close, { device: 'gast', seq: 4, at: 3015 }, 40);
 assert.strictEqual(mp.settleBuzz(close, 70).kind, 'win');
 
+assert.strictEqual(mp.localBuzzLit({ pressed: true, settled: false, winner: '', self: 'a' }), true);
+assert.strictEqual(mp.localBuzzLit({ pressed: true, settled: true, winner: 'a', self: 'a' }), true);
+assert.strictEqual(mp.localBuzzLit({ pressed: true, settled: true, winner: 'b', self: 'a' }), false);
+assert.strictEqual(mp.localBuzzLit({ pressed: false, settled: false, winner: '', self: 'b' }), false);
+assert.strictEqual(mp.localBuzzLit({ pressed: false, settled: true, winner: 'b', self: 'b' }), false);
+
 let order = mp.arrange(['a', 'b', 'c', 'd'], [], []);
 assert.deepStrictEqual(order, ['a', 'b', 'c', 'd']);
 let locked = mp.lockIn([], 'b');

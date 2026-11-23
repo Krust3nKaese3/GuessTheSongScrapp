@@ -95,6 +95,12 @@
     return result;
   }
 
+  function localBuzzLit(input) {
+    if (!input || !input.pressed) return false;
+    if (!input.settled) return true;
+    return String(input.winner == null ? '' : input.winner) === String(input.self == null ? '' : input.self);
+  }
+
   function arrange(rosterIds, lockedIds, previousIds) {
     const roster = Array.isArray(rosterIds) ? rosterIds : [];
     const index = new Map();
@@ -307,6 +313,7 @@
     openBuzz: openBuzz,
     takeBuzz: takeBuzz,
     settleBuzz: settleBuzz,
+    localBuzzLit: localBuzzLit,
     arrange: arrange,
     lockIn: lockIn,
     unlockLast: unlockLast,
