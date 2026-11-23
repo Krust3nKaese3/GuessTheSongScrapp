@@ -219,6 +219,13 @@
     }
     .buzzer:active { transform: scale(0.97); }
     .buzzer:disabled { background: #3f4a28; color: #111; box-shadow: none; }
+    .buzzer.lit,
+    .buzzer.lit:disabled {
+      background: #EF4444;
+      color: #fff;
+      font-size: 32px;
+      box-shadow: 0 0 28px rgba(239, 68, 68, 0.72), 0 0 72px rgba(239, 68, 68, 0.42);
+    }
     .score-card {
       width: min(100%, 360px);
       background: #17171c;
@@ -392,6 +399,7 @@
       detail: '',
       hostAway: false,
       buzzDevice: '',
+      pressedBuzz: false,
       searcherId: '',
       localLock: false,
       hostPaused: false,
@@ -2191,6 +2199,7 @@
         state.phase = 'playing';
         net.searcherId = '';
         net.buzzDevice = '';
+        net.pressedBuzz = false;
         net.localLock = false;
         net.hostPaused = false;
         net.undo = null;
@@ -2214,6 +2223,9 @@
         pauseCall = Promise.reject(error);
       }
       playBuzzerImmediate();
+      net.pressedBuzz = true;
+      applyBuzzFace();
+      net.pressedBuzz = false;
       round.lock = true;
       round.pendingSec = buzzSeconds(round);
       stopPoll();
@@ -2290,6 +2302,7 @@
       state.phase = 'search';
       state.info = 'Der Song ist nicht angelaufen. Such noch einmal.';
       net.localLock = false;
+      net.pressedBuzz = false;
       resetBuzzTable();
       if (isHost()) publish();
       render();
@@ -2344,6 +2357,7 @@
         }
         round.pendingSec = null;
         state.phase = 'reveal';
+        net.pressedBuzz = false;
         const epoch = beginTransportTurn();
         if (isHost()) {
           noteLocalScore(guesser);
@@ -2402,6 +2416,7 @@
             state.holdingSfx = false;
             net.localLock = false;
             net.buzzDevice = '';
+            net.pressedBuzz = false;
             resetBuzzTable();
             if (isHost()) publish();
             render();
@@ -2424,6 +2439,7 @@
       state.phase = 'playing';
       net.buzzDevice = '';
       net.localLock = false;
+      net.pressedBuzz = false;
       net.pickedLocal = false;
       net.confirmJudge = '';
       net.undo = null;
@@ -2760,6 +2776,7 @@
         ${bannersHtml()}
         ${scoreboardHtml()}
         <section class="stage">
+          ${buzzLitNow() ? buzzButtonHtml() : ''}
           ${ask ? `<p class="lead">${question}</p>
             <button type="button" class="btn" data-action="${net.confirmJudge === 'no' ? 'judge-no' : 'judge-yes'}">Ja</button>
             <button type="button" class="btn ghost" data-action="judge-cancel">Zurück</button>`
@@ -3033,6 +3050,34 @@
       </div>`;
     }
 
+    function buzzLitNow() {
+      const logic = mpLogic();
+      if (!net.role || !logic) return Boolean(net.pressedBuzz) && state.phase === 'playing';
+      const settled = state.phase === 'guess' || state.phase === 'mark' || Boolean(net.buzzDevice);
+      return logic.localBuzzLit({
+        pressed: net.pressedBuzz,
+        settled: settled,
+        winner: net.buzzDevice,
+        self: net.selfId
+      });
+    }
+
+    function buzzButtonHtml() {
+      const lit = buzzLitNow();
+      const locked = lit || state.holdingSfx || Boolean(net.role && net.localLock) || state.phase !== 'playing' || Boolean(state.round && state.round.lock);
+      return `<button type="button" class="buzzer${lit ? ' lit' : ''}" data-action="buzz" ${locked ? 'disabled' : ''} aria-label="${lit ? 'Gebuzzert' : 'Stopp, Song anhalten'}">${lit ? 'GEBUZZERT' : 'BUZZ'}</button>`;
+    }
+
+    function applyBuzzFace() {
+      const button = document.querySelector('[data-action="buzz"]');
+      if (!button) return;
+      const lit = buzzLitNow();
+      button.classList.toggle('lit', lit);
+      button.textContent = lit ? 'GEBUZZERT' : 'BUZZ';
+      button.setAttribute('aria-label', lit ? 'Gebuzzert' : 'Stopp, Song anhalten');
+      button.disabled = lit || state.holdingSfx || Boolean(net.role && net.localLock) || state.phase !== 'playing' || Boolean(state.round && state.round.lock);
+    }
+
     function waveHtml() {
       let bars = '';
       for (let i = 0; i < 28; i += 1) bars += '<span></span>';
@@ -3062,17 +3107,17 @@
           </div>
           ${waveHtml()}
           <p id="playState" class="hint" aria-live="polite">${state.transportPaused ? 'Die Wiedergabe ist pausiert. Titel und Interpret bleiben verdeckt.' : 'Der Song läuft. Titel und Interpret bleiben verdeckt.'} DJ ${esc(dj ? labelOf(dj) : '')}</p>
-          <button type="button" class="buzzer" data-action="buzz" ${state.holdingSfx || (net.role && net.localLock) ? 'disabled' : ''} aria-label="Stopp, Song anhalten">BUZZ</button>
+          ${buzzButtonHtml()}
           ${playingScoresHtml()}
           ${net.role ? '<p class="host-note">Musik läuft auf dem Host-Handy</p>' : ''}
-          <button type="button" id="resumeBtn" class="btn secondary" data-action="resume" ${state.transportPaused && !state.holdingSfx ? '' : 'hidden'}>Fortsetzen</button>
+          <button type="button" id="resumeBtn" class="btn secondary" data-action="resume" ${state.phase === 'playing' && state.transportPaused && !state.holdingSfx ? '' : 'hidden'}>Fortsetzen</button>
           ${state.round && state.round.unconfirmed && !isGuest() ? `<div id="unconfirmed" class="stack">
             <p class="banner warn">Spotify spielt den Song noch nicht. Bitte die Box und die Verbindung prüfen. Der Titel bleibt verdeckt.</p>
             <button type="button" class="btn secondary" data-action="retry-play">Erneut von vorne starten</button>
             <button type="button" class="btn ghost" data-action="back-search">Zurück zur Suche</button>
           </div>` : ''}
         </section>
-        <button type="button" class="btn ghost" data-action="skip" ${state.holdingSfx || (net.role && net.localLock) ? 'disabled' : ''}>Überspringen (−3 für ${esc(dj ? labelOf(dj) : 'den DJ')})</button>
+          ${state.phase === 'playing' ? `<button type="button" class="btn ghost" data-action="skip" ${state.holdingSfx || (net.role && net.localLock) ? 'disabled' : ''}>Überspringen (−3 für ${esc(dj ? labelOf(dj) : 'den DJ')})</button>` : ''}
         ${undoHtml()}
       </div>`;
     }
@@ -3091,6 +3136,7 @@
         ${reconnectHtml()}
         ${scoreboardHtml()}
         <section class="stack">
+          ${net.role && buzzLitNow() ? buzzButtonHtml() : ''}
           <h2>Wer hat geraten?</h2>
           <button type="button" class="btn ghost" data-action="back-name">Zurück</button>
           <p class="hint">Der DJ zählt nicht. Erst die Person wählen, dann Ja oder Nein. Falscher Name? Zurück, dann neu wählen.</p>
@@ -3300,7 +3346,9 @@
       let view = overlayView() || views[state.phase] || renderSetup;
       if (browserGuestShell() && !overlayView() && (net.resumeError || state.phase === 'setup')) view = renderGuestBoot;
       if (!overlayView() && net.role && state.phase === 'search' && net.searcherId !== net.selfId) view = renderSearchWait;
-      if (!overlayView() && net.role && state.phase === 'guess' && net.buzzDevice !== net.selfId) view = renderGuessWait;
+      if (!overlayView() && net.role && state.phase === 'guess' && net.buzzDevice !== net.selfId) {
+        view = net.pressedBuzz ? renderPlaying : renderGuessWait;
+      }
       if (!overlayView() && net.role && state.phase === 'mark') view = renderMarks;
       app.innerHTML = view() + modalHtml();
       paintPlayerSuggest();
@@ -4409,6 +4457,7 @@
       }
       if (result.kind === 'tie') {
         net.localLock = false;
+        net.pressedBuzz = false;
         net.buzzDevice = '';
         net.hostPaused = false;
         if (state.round) state.round.lock = false;
@@ -4431,6 +4480,7 @@
       }
       if (String(result.device) !== String(net.selfId)) pauseForBuzz();
       publish();
+      applyBuzzFace();
       paintDeferred(function () { render(); });
     }
 
@@ -4440,12 +4490,12 @@
       const logic = mpLogic();
       if (!logic) return;
       net.localLock = true;
+      net.pressedBuzz = true;
       net.finger = true;
       net.buzzSeq += 1;
       const offset = isHost() || !net.clock ? 0 : logic.clockOffset(net.clock);
       const packet = { seq: net.buzzSeq, at: Date.now() + offset };
-      const button = document.querySelector('[data-action="buzz"]');
-      if (button) button.disabled = true;
+      applyBuzzFace();
       if (isGuest()) {
         sendHost({ t: 'buzz', seq: packet.seq, at: packet.at });
         return;
@@ -4519,14 +4569,19 @@
       }
       state.busy = false;
       net.localLock = Boolean(msg.hold) || (state.phase === 'playing' && state.round && state.round.lock);
+      if (state.phase !== 'guess' && state.phase !== 'mark') {
+        if (!(state.phase === 'playing' && state.round && state.round.lock)) net.pressedBuzz = false;
+      }
       if (state.phase === 'guess' && !state.guesserId) net.confirmJudge = '';
       if (booting) {
         net.pendingState = null;
         return;
       }
       const mine = String(net.buzzDevice) === String(net.selfId);
-      if (net.finger && mine && (state.phase === 'guess' || state.phase === 'mark')) paintDeferred(function () { render(); });
-      else render();
+      if (net.finger && (mine && (state.phase === 'guess' || state.phase === 'mark') || (net.pressedBuzz && !buzzLitNow()))) {
+        applyBuzzFace();
+        paintDeferred(function () { render(); });
+      } else render();
     }
 
     function onGuestPacket(data) {
@@ -4539,12 +4594,12 @@
       if (data.t === 'lock') {
         net.localLock = true;
         if (state.round) state.round.lock = true;
-        const button = document.querySelector('[data-action="buzz"]');
-        if (button) button.disabled = true;
+        applyBuzzFace();
         return;
       }
       if (data.t === 'tie') {
         net.localLock = false;
+        net.pressedBuzz = false;
         net.finger = false;
         if (state.round) state.round.lock = false;
         state.notice = 'Gleichstand, knapp zusammen. Niemand bekommt den Tipp.';
@@ -4553,6 +4608,8 @@
       }
       if (data.t === 'reject' && state.phase === 'playing' && !state.holdingSfx) {
         net.localLock = false;
+        net.pressedBuzz = false;
+        applyBuzzFace();
         render();
         return;
       }
@@ -4769,6 +4826,7 @@
       net.detail = '';
       net.hostAway = false;
       net.buzzDevice = '';
+      net.pressedBuzz = false;
       net.searcherId = '';
       net.localLock = false;
       net.hostPaused = false;
