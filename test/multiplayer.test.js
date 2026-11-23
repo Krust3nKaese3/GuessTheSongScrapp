@@ -20,7 +20,7 @@ assert.deepStrictEqual(first, { ok: true, first: true });
 assert.deepStrictEqual(mp.takeBuzz(table, { device: 'a', seq: 2, at: 1005 }, 5010), { ok: false, reason: 'dup' });
 assert.strictEqual(mp.settleBuzz(table, 5030), null);
 mp.takeBuzz(table, { device: 'b', seq: 1, at: 1010 }, 5040);
-assert.deepStrictEqual(mp.settleBuzz(table, 5060), { kind: 'tie' });
+assert.deepStrictEqual(mp.settleBuzz(table, 5060), { kind: 'win', device: 'a', at: 1000 });
 assert.deepStrictEqual(mp.takeBuzz(table, { device: 'c', seq: 1, at: 900 }, 5100), { ok: false, reason: 'closed' });
 
 const win = mp.openBuzz();
@@ -38,6 +38,72 @@ assert.strictEqual(mp.localBuzzLit({ pressed: true, settled: true, winner: 'a', 
 assert.strictEqual(mp.localBuzzLit({ pressed: true, settled: true, winner: 'b', self: 'a' }), false);
 assert.strictEqual(mp.localBuzzLit({ pressed: false, settled: false, winner: '', self: 'b' }), false);
 assert.strictEqual(mp.localBuzzLit({ pressed: false, settled: true, winner: 'b', self: 'b' }), false);
+
+function settlePair(rows) {
+  const race = mp.openBuzz();
+  rows.forEach((row) => {
+    const taken = mp.takeBuzz(race, row, row.recv);
+    assert.strictEqual(taken.ok, true);
+  });
+  return mp.settleBuzz(race, rows[0].recv + mp.DECISION_MS);
+}
+
+assert.deepStrictEqual(
+  settlePair([
+    { device: 'host', seq: 1, at: 5000, recv: 100 },
+    { device: 'guest', seq: 1, at: 5008, recv: 140 }
+  ]),
+  { kind: 'win', device: 'host', at: 5000 }
+);
+assert.deepStrictEqual(
+  settlePair([
+    { device: 'guest', seq: 1, at: 5000, recv: 100 },
+    { device: 'host', seq: 1, at: 5008, recv: 140 }
+  ]),
+  { kind: 'win', device: 'guest', at: 5000 }
+);
+assert.deepStrictEqual(
+  settlePair([
+    { device: 'guest', seq: 1, at: 5100, recv: 100 },
+    { device: 'host', seq: 1, at: 5000, recv: 180 }
+  ]),
+  { kind: 'win', device: 'host', at: 5000 }
+);
+assert.deepStrictEqual(
+  settlePair([
+    { device: 'host', seq: 1, at: 5100, recv: 100 },
+    { device: 'guest', seq: 1, at: 5000, recv: 180 }
+  ]),
+  { kind: 'win', device: 'guest', at: 5000 }
+);
+assert.deepStrictEqual(
+  settlePair([
+    { device: 'host', seq: 2, at: 7000, recv: 100 },
+    { device: 'guest', seq: 1, at: 7000, recv: 160 }
+  ]),
+  { kind: 'win', device: 'host', at: 7000 }
+);
+assert.deepStrictEqual(
+  settlePair([
+    { device: 'guest', seq: 1, at: 7000, recv: 100 },
+    { device: 'host', seq: 2, at: 7000, recv: 160 }
+  ]),
+  { kind: 'win', device: 'guest', at: 7000 }
+);
+assert.deepStrictEqual(
+  settlePair([
+    { device: 'host', seq: 4, at: 8000, recv: 200 },
+    { device: 'guest', seq: 1, at: 8000, recv: 200 }
+  ]),
+  { kind: 'win', device: 'guest', at: 8000 }
+);
+assert.deepStrictEqual(
+  settlePair([
+    { device: 'm-host', seq: 1, at: 8000, recv: 200 },
+    { device: 'a-guest', seq: 9, at: 8000, recv: 200 }
+  ]),
+  { kind: 'win', device: 'a-guest', at: 8000 }
+);
 
 let order = mp.arrange(['a', 'b', 'c', 'd'], [], []);
 assert.deepStrictEqual(order, ['a', 'b', 'c', 'd']);

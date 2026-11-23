@@ -4414,6 +4414,8 @@
       setTimeout(run, 480);
     }
 
+    let pauseFlight = Promise.resolve();
+
     function pauseForBuzz() {
       let pauseCall;
       try { pauseCall = requireApi().pause(); }
@@ -4421,7 +4423,21 @@
       playBuzzerImmediate();
       buzzHaptic();
       net.hostPaused = true;
-      pauseCall.then(function () {}, function (error) { presentError(error); });
+      pauseFlight = pauseCall.then(function () {}, function (error) { presentError(error); });
+      return pauseFlight;
+    }
+
+    function releasePausedRound() {
+      net.localLock = false;
+      net.pressedBuzz = false;
+      net.buzzDevice = '';
+      net.hostPaused = false;
+      if (state.round) state.round.lock = false;
+      const resume = function () {
+        if (net.buzzDevice || state.phase !== 'playing') return;
+        restorePlayback().then(function () {}, function (error) { presentError(error); });
+      };
+      pauseFlight.then(resume, resume);
     }
 
     function armDecision() {
@@ -4455,19 +4471,14 @@
         if (net.buzz.open && net.buzz.buzzes.length) armDecision();
         return;
       }
-      if (result.kind === 'tie') {
-        net.localLock = false;
-        net.pressedBuzz = false;
-        net.buzzDevice = '';
-        net.hostPaused = false;
-        if (state.round) state.round.lock = false;
+      if (result.kind !== 'win' || !result.device) {
         state.notice = 'Gleichstand, knapp zusammen. Niemand bekommt den Tipp.';
         state.phase = 'playing';
         net.buzz = logic.openBuzz();
         cast({ t: 'tie' });
+        releasePausedRound();
         publish();
         render();
-        restorePlayback().then(function () {}, function (error) { presentError(error); });
         return;
       }
       net.buzzDevice = result.device;
