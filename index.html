@@ -303,9 +303,9 @@
 </head>
 <body>
   <div id="app"></div>
-  <audio id="sfx-buzzer" src="assets/sounds/buzzer.mp3" preload="auto" hidden></audio>
-  <audio id="sfx-correct" src="assets/sounds/correct.mp3" preload="auto" hidden></audio>
-  <audio id="sfx-wrong" src="assets/sounds/wrong.mp3" preload="auto" hidden></audio>
+  <audio id="sfx-buzzer" preload="none" hidden></audio>
+  <audio id="sfx-correct" preload="none" hidden></audio>
+  <audio id="sfx-wrong" preload="none" hidden></audio>
   <video id="wakeVideo" src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAM3bW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAAfQAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAmF0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAAfQAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAH0AAAAAAABAAAAAAHZbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAAAoAAAAFABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABhG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAURzdGJsAAAAuHN0c2QAAAAAAAAAAQAAAKhhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFUxhdmM2MC4zMS4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAALmF2Y0MBQsAe/+EAFmdCwB7ZHsBEAAADAAQAAAMAUDxYuSABAAVoy4PEyAAAABBwYXNwAAAAAQAAAAEAAAAUYnRydAAAAAAAACsQAAArEAAAABhzdHRzAAAAAAAAAAEAAAAFAAAEAAAAABRzdHNzAAAAAAAAAAEAAAABAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAAFAAAAAQAAAChzdHN6AAAAAAAAAAAAAAAFAAAChwAAAAsAAAALAAAACgAAAAoAAAAUc3RjbwAAAAAAAAABAAADZwAAAGJ1ZHRhAAAAWm1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAAAAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNjAuMTYuMTAwAAAACGZyZWUAAAK5bWRhdAAAAnMGBf//b9xF6b3m2Ui3lizYINkj7u94MjY0IC0gY29yZSAxNjQgcjMxMDggMzFlMTlmOSAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMjMgLSBodHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0wIHJlZj0zIGRlYmxvY2s9MTotMzotMyBhbmFseXNlPTB4MToweDExMSBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9Mi4wMDowLjcwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MSA4eDhkY3Q9MCBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tNCB0aHJlYWRzPTEgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbmVkX2ludHJhPTAgYmZyYW1lcz0wIHdlaWdodHA9MCBrZXlpbnQ9MjUwIGtleWludF9taW49MTAgc2NlbmVjdXQ9NDAgaW50cmFfcmVmcmVzaD0wIHJjX2xvb2thaGVhZD00MCByYz1jcmYgbWJ0cmVlPTEgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEuNDAgYXE9MToxLjIwAIAAAAAMZYiEBLOcmKAAOKOAAAAAB0GaOAlnOoAAAAAHQZpUAlnOoAAAAAZBmmARznUAAAAGQZqAEM51" muted playsinline webkit-playsinline loop preload="auto" disablepictureinpicture aria-hidden="true"></video>
   <p id="wakeDebug" class="wake-debug" hidden></p>
   <script src="players.js"></script>
@@ -1288,8 +1288,76 @@
       if (current) current.cancel();
     }
 
+    let soundGate = null;
+    const SFX_FILES = {
+      buzzer: 'assets/sounds/buzzer.mp3',
+      correct: 'assets/sounds/correct.mp3',
+      wrong: 'assets/sounds/wrong.mp3'
+    };
+
+    function soundGateNow() {
+      if (!soundGate) {
+        const logic = mpLogic();
+        soundGate = logic ? logic.createSoundGate() : { decided: false, guest: false, armed: false };
+      }
+      return soundGate;
+    }
+
+    function soundsBlocked() {
+      const logic = mpLogic();
+      const gate = soundGateNow();
+      if (isGuest() || browserGuestShell()) {
+        if (logic && logic.settleSounds(gate, { guest: true }) === 'release') releaseSoundElements();
+        return true;
+      }
+      return logic ? !logic.allowSoundPlay(gate) : false;
+    }
+
+    function attachSoundSources() {
+      if (soundsBlocked()) return;
+      Object.keys(SFX_FILES).forEach((name) => {
+        const el = document.getElementById('sfx-' + name);
+        if (!el || el.getAttribute('src')) return;
+        el.preload = 'auto';
+        el.src = SFX_FILES[name];
+      });
+      watchBuzzerSource();
+    }
+
+    function releaseSoundElements() {
+      stopSfx();
+      Object.keys(SFX_FILES).forEach((name) => {
+        const el = document.getElementById('sfx-' + name);
+        if (!el) return;
+        try { el.pause(); } catch (error) {}
+        el.removeAttribute('src');
+        el.preload = 'none';
+        try { el.load(); } catch (error) {}
+        if (el.dataset) el.dataset.warm = '';
+      });
+      buzzerBuffer = null;
+      buzzerSrcSeen = '';
+      if (audioCtx) {
+        const ctx = audioCtx;
+        audioCtx = null;
+        buzzerGain = null;
+        try { ctx.close(); } catch (error) {}
+      }
+    }
+
+    function syncSounds(probeDone) {
+      const logic = mpLogic();
+      if (!logic) return;
+      const action = logic.settleSounds(soundGateNow(), {
+        guest: isGuest() || browserGuestShell(),
+        probeDone: Boolean(probeDone)
+      });
+      if (action === 'release') releaseSoundElements();
+      if (action === 'arm') attachSoundSources();
+    }
+
     function playSfx(name) {
-      if (isGuest()) return Promise.resolve();
+      if (soundsBlocked()) return Promise.resolve();
       stopSfx();
       const el = document.getElementById('sfx-' + name);
       if (!el) return Promise.resolve();
@@ -1326,6 +1394,7 @@
     let buzzerSrcSeen = '';
 
     function audioContext() {
+      if (soundsBlocked()) return null;
       if (audioCtx) return audioCtx;
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return null;
@@ -1353,7 +1422,7 @@
     }
 
     function unlockBuzzer() {
-      if (isGuest() || focusedTypingField()) return;
+      if (soundsBlocked() || focusedTypingField()) return;
       const ctx = audioContext();
       if (ctx && ctx.state === 'suspended') {
         try { ctx.resume(); } catch (error) {}
@@ -1386,6 +1455,7 @@
     }
 
     function decodeBuzzerFrom(src) {
+      if (soundsBlocked()) return;
       const ctx = audioContext();
       if (!ctx || !src) return;
       if (src === buzzerSrcSeen) return;
@@ -1405,7 +1475,7 @@
     }
 
     function primeBuzzer() {
-      if (isGuest()) return;
+      if (soundsBlocked()) return;
       const el = document.getElementById('sfx-buzzer');
       if (!el) return;
       decodeBuzzerFrom(el.currentSrc || el.src || '');
@@ -1421,6 +1491,7 @@
     }
 
     function playBuzzerImmediate() {
+      if (soundsBlocked()) return;
       const ctx = audioContext();
       if (ctx && ctx.state === 'suspended') {
         try { ctx.resume(); } catch (error) {}
@@ -4869,6 +4940,7 @@
           mp.onResumed((info) => {
             noteBrowserGuest();
             adoptRoom(info);
+            if (isGuest() || net.browserGuest) syncSounds(true);
             if (net.browserGuest && !net.role) enterGuest();
             if (!saveReady) return;
             if (isHost()) publish();
@@ -5128,7 +5200,9 @@
         tries: 12,
         gap: 200
       }, function (guest) {
-        if (guest) enterGuest();
+        if (!guest) return;
+        syncSounds(true);
+        enterGuest();
       });
     }
 
@@ -5160,8 +5234,8 @@
           await loadHistory();
           await restoreGame();
           migrateRoster();
-          watchBuzzerSource();
         }
+        syncSounds(true);
       } catch (error) {}
       saveReady = true;
       flushEarly();

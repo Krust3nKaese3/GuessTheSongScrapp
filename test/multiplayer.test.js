@@ -224,4 +224,29 @@ shim.guest = true;
 shim.multiplayer.fn();
 assert.strictEqual(resumed[resumed.length - 1], true);
 
+const guestSounds = mp.createSoundGate();
+assert.strictEqual(mp.settleSounds(guestSounds, { guest: true }), 'idle');
+assert.strictEqual(mp.allowSoundLoad(guestSounds), false);
+assert.strictEqual(mp.allowSoundPlay(guestSounds), false);
+assert.strictEqual(mp.settleSounds(guestSounds, { guest: true, probeDone: true }), 'idle');
+assert.strictEqual(guestSounds.armed, false);
+
+const lateSounds = mp.createSoundGate();
+assert.strictEqual(mp.settleSounds(lateSounds, { guest: false, probeDone: false }), 'wait');
+assert.strictEqual(mp.allowSoundLoad(lateSounds), false);
+assert.strictEqual(mp.settleSounds(lateSounds, { probeDone: true }), 'arm');
+assert.strictEqual(mp.allowSoundLoad(lateSounds), true);
+assert.strictEqual(mp.allowSoundPlay(lateSounds), true);
+assert.strictEqual(mp.settleSounds(lateSounds, { guest: true }), 'release');
+assert.strictEqual(mp.allowSoundLoad(lateSounds), false);
+assert.strictEqual(mp.allowSoundPlay(lateSounds), false);
+assert.strictEqual(lateSounds.armed, false);
+
+const html = require('fs').readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
+assert.strictEqual(html.indexOf('src="assets/sounds/'), -1);
+['playSfx', 'unlockBuzzer', 'primeBuzzer', 'playBuzzerImmediate', 'decodeBuzzerFrom'].forEach((name) => {
+  const body = html.slice(html.indexOf('function ' + name + '('), html.indexOf('function ' + name + '(') + 280);
+  assert.ok(body.indexOf('soundsBlocked()') !== -1, name);
+});
+
 console.log('multiplayer ok');

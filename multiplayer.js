@@ -259,6 +259,37 @@
     return Boolean(bridge && bridge.guest === true);
   }
 
+  function createSoundGate() {
+    return { decided: false, guest: false, armed: false };
+  }
+
+  function settleSounds(gate, info) {
+    const g = gate || createSoundGate();
+    const src = info || {};
+    if (src.guest) {
+      const was = g.armed;
+      g.guest = true;
+      g.decided = true;
+      g.armed = false;
+      return was ? 'release' : 'idle';
+    }
+    if (!g.decided && (src.probeDone || src.hostReady)) {
+      g.guest = false;
+      g.decided = true;
+      g.armed = true;
+      return 'arm';
+    }
+    return 'wait';
+  }
+
+  function allowSoundLoad(gate) {
+    return Boolean(gate && gate.decided && !gate.guest);
+  }
+
+  function allowSoundPlay(gate) {
+    return Boolean(gate && gate.armed && !gate.guest);
+  }
+
   function armGuestRetry(env, onSee) {
     const opts = env || {};
     const getBridge = typeof opts.getBridge === 'function' ? opts.getBridge : function () { return null; };
@@ -326,6 +357,10 @@
     emptyOrder: emptyOrder,
     normalizeOrder: normalizeOrder,
     isBrowserGuest: isBrowserGuest,
-    armGuestRetry: armGuestRetry
+    armGuestRetry: armGuestRetry,
+    createSoundGate: createSoundGate,
+    settleSounds: settleSounds,
+    allowSoundLoad: allowSoundLoad,
+    allowSoundPlay: allowSoundPlay
   };
 });
