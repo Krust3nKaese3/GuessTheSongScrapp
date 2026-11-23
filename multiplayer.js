@@ -82,14 +82,15 @@
     if (!table || !table.open || table.decided) return table ? table.decided : null;
     if (!table.buzzes.length) return null;
     const wait = windowMs == null ? DECISION_MS : windowMs;
-    const tie = tieMs == null ? TIE_MS : tieMs;
     if ((Number(now) || 0) - table.since < wait) return null;
-    const sorted = table.buzzes.slice().sort((a, b) => a.at - b.at || a.recv - b.recv || a.seq - b.seq);
+    const sorted = table.buzzes.slice().sort((a, b) => {
+      if (a.at !== b.at) return a.at - b.at;
+      if (a.recv !== b.recv) return a.recv - b.recv;
+      if (a.device !== b.device) return a.device < b.device ? -1 : 1;
+      return a.seq - b.seq;
+    });
     const best = sorted[0];
-    const next = sorted[1];
-    const result = next && (next.at - best.at) < tie
-      ? { kind: 'tie' }
-      : { kind: 'win', device: best.device, at: best.at };
+    const result = { kind: 'win', device: best.device, at: best.at };
     table.decided = result;
     table.open = false;
     return result;
