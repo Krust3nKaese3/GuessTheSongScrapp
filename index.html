@@ -214,26 +214,27 @@
     .round-label { font-size: 20px; font-weight: 650; color: #f4f4f5; }
     .timer-ring {
       --p: 0;
-      width: 64px;
-      height: 64px;
-      position: relative;
-      display: grid;
-      place-items: center;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
     }
-    .timer-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
-    .timer-ring circle { fill: none; stroke: #2a2a32; stroke-width: 4; }
+    .timer-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .timer-ring circle { fill: none; stroke: rgba(0, 0, 0, 0.28); stroke-width: 3; }
     .timer-ring .prog {
-      stroke: #A3E635;
+      stroke: #111;
       stroke-linecap: round;
-      stroke-dasharray: calc(var(--p) * 113.1) 113.1;
+      stroke-dasharray: calc(var(--p) * 295.3) 295.3;
     }
-    #roundClock { position: relative; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
-    .eq { display: flex; align-items: center; justify-content: center; gap: 4px; height: 72px; width: min(92vw, 420px); }
+    .buzzer.lit .timer-ring circle { stroke: rgba(255, 255, 255, 0.28); }
+    .buzzer.lit .timer-ring .prog { stroke: #fff; }
+    .eq { display: flex; align-items: center; justify-content: center; gap: 3px; height: 36px; width: 58%; position: relative; z-index: 1; }
     .eq span {
-      width: 4px;
-      height: 14px;
+      width: 3px;
+      height: 8px;
       border-radius: 99px;
-      background: #A3E635;
+      background: currentColor;
       transform-origin: center;
       animation: bounce 1.05s ease-in-out infinite;
     }
@@ -247,6 +248,7 @@
       50% { transform: scaleY(2.4); }
     }
     .buzzer {
+      position: relative;
       width: min(68vw, 280px);
       height: min(68vw, 280px);
       border-radius: 50%;
@@ -259,14 +261,20 @@
       box-shadow: 0 0 28px rgba(163, 230, 53, 0.55), 0 0 72px rgba(163, 230, 53, 0.28);
       user-select: none;
       touch-action: manipulation;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0;
     }
+    .buzzer-label { position: relative; z-index: 1; line-height: 1; }
     .buzzer:active { transform: scale(0.97); }
     .buzzer:disabled { background: #3f4a28; color: #111; box-shadow: none; }
     .buzzer.lit,
     .buzzer.lit:disabled {
       background: #EF4444;
       color: #fff;
-      font-size: 32px;
       box-shadow: 0 0 28px rgba(239, 68, 68, 0.72), 0 0 72px rgba(239, 68, 68, 0.42);
     }
     .score-card {
@@ -2959,16 +2967,16 @@
     function marksInlineHtml() {
       if (isGuest() && net.confirmJudge) {
         const no = net.confirmJudge === 'no';
-        return `<p class="lead">${no ? 'Falsch werten?' : 'Richtig werten?'}</p>
+        return `<div class="mark-slot"><p class="lead">${no ? 'Falsch werten?' : 'Richtig werten?'}</p>
           <button type="button" class="btn" data-action="${no ? 'judge-no' : 'judge-yes'}">Ja</button>
-          <button type="button" class="btn ghost" data-action="judge-cancel">Zurück</button>`;
+          <button type="button" class="btn ghost" data-action="judge-cancel">Zurück</button></div>`;
       }
       const yes = '<svg viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path d="M416 128 192 384 96 288" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/></svg>';
       const no = '<svg viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path d="M368 368 144 144M368 144 144 368" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/></svg>';
-      return `<div class="marks">
+      return `<div class="mark-slot"><div class="marks">
         <button type="button" class="mark good" data-action="judge-yes" aria-label="Richtig">${yes}</button>
         <button type="button" class="mark bad" data-action="judge-no" aria-label="Falsch">${no}</button>
-      </div>`;
+      </div></div>`;
     }
 
     function undoHtml() {
@@ -3220,10 +3228,37 @@
       });
     }
 
+    function buzzClickable() {
+      if (state.phase !== 'playing' || !state.round || state.round.lock) return false;
+      if (state.holdingSfx || buzzLitNow()) return false;
+      if (net.role && net.localLock) return false;
+      return true;
+    }
+
+    let buzzWasClickable = false;
+
+    function armBuzzerPage() {
+      const clickable = buzzClickable();
+      const opened = clickable && !buzzWasClickable;
+      buzzWasClickable = clickable;
+      if (!opened) return false;
+      state.overlay = null;
+      net.localSearch = false;
+      if (net.shell !== 'index') postShell('index');
+      return true;
+    }
+
+    function focusBuzzer() {
+      const button = document.querySelector('#app [data-action="buzz"]');
+      if (!button) return;
+      button.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+    }
+
     function buzzButtonHtml() {
       const lit = buzzLitNow();
       const locked = lit || state.holdingSfx || Boolean(net.role && net.localLock) || state.phase !== 'playing' || Boolean(state.round && state.round.lock);
-      return `<button type="button" class="buzzer${lit ? ' lit' : ''}" data-action="buzz" ${locked ? 'disabled' : ''} aria-label="${lit ? 'Gebuzzert' : 'Stopp, Song anhalten'}">${lit ? 'GEBUZZERT' : 'BUZZ'}</button>`;
+      const ring = `<span class="timer-ring" id="roundRing" style="--p:0"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="47"></circle><circle class="prog" cx="50" cy="50" r="47"></circle></svg></span>`;
+      return `<button type="button" class="buzzer${lit ? ' lit' : ''}" data-action="buzz" ${locked ? 'disabled' : ''} aria-label="${lit ? 'Gebuzzert' : 'Stopp, Song anhalten'}">${ring}${waveHtml()}<span class="buzzer-label">BUZZ</span></button>`;
     }
 
     function applyBuzzFace() {
@@ -3231,7 +3266,8 @@
       if (!button) return;
       const lit = buzzLitNow();
       button.classList.toggle('lit', lit);
-      button.textContent = lit ? 'GEBUZZERT' : 'BUZZ';
+      const label = button.querySelector('.buzzer-label');
+      if (label) label.textContent = 'BUZZ';
       button.setAttribute('aria-label', lit ? 'Gebuzzert' : 'Stopp, Song anhalten');
       button.disabled = lit || state.holdingSfx || Boolean(net.role && net.localLock) || state.phase !== 'playing' || Boolean(state.round && state.round.lock);
     }
@@ -3250,8 +3286,7 @@
     }
 
     function guessPickHtml() {
-      const marks = state.phase === 'mark' ? marksInlineHtml() : '';
-      return `<div class="stack guess-pick">${guessListHtml()}${marks}<button type="button" class="btn ghost" data-action="mistake">Versehentlich gedrückt</button></div>`;
+      return `<div class="stack guess-pick">${guessListHtml()}<button type="button" class="btn ghost" data-action="mistake">Versehentlich gedrückt</button></div>`;
     }
 
     function settleBuzzScreen() {
@@ -3271,7 +3306,7 @@
       }
       const pick = document.querySelector('#app .guess-pick');
       if (pick && state.phase !== 'mark') {
-        pick.querySelectorAll('.marks, .lead, [data-action="judge-yes"], [data-action="judge-no"], [data-action="judge-cancel"]').forEach((node) => node.remove());
+        pick.querySelectorAll('.mark-slot').forEach((node) => node.remove());
       }
       const roundHead = document.querySelector('#app .round-head');
       if (roundHead) {
@@ -3292,9 +3327,11 @@
         else eq.insertAdjacentHTML('afterend', html);
         return;
       }
-      if (state.phase === 'mark' && canPickOnBuzz() && pick && !pick.querySelector('.marks') && !pick.querySelector('[data-action="judge-cancel"]')) {
-        const mistake = pick.querySelector('[data-action="mistake"]');
-        if (mistake) mistake.insertAdjacentHTML('beforebegin', marksInlineHtml());
+      if (state.phase === 'mark' && canPickOnBuzz() && pick) {
+        const selected = pick.querySelector('.choice.selected');
+        const slot = pick.querySelector('.mark-slot');
+        if (selected && !slot) selected.insertAdjacentHTML('afterend', marksInlineHtml());
+        else if (selected && slot && slot.previousElementSibling !== selected) selected.insertAdjacentElement('afterend', slot);
       }
     }
 
@@ -3314,12 +3351,7 @@
           <div class="round-head">
             ${backNameButtonHtml()}
             <p class="round-label">Runde ${roundNo}</p>
-            <div class="timer-ring" id="roundRing" style="--p:0">
-              <svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="18"></circle><circle class="prog" cx="22" cy="22" r="18"></circle></svg>
-              <span id="roundClock">0:00</span>
-            </div>
           </div>
-          ${waveHtml()}
           ${buzzButtonHtml()}
           ${(state.phase === 'guess' || state.phase === 'mark') && canPickOnBuzz() ? guessPickHtml() : playingScoresHtml()}
           ${namesFoldHtml()}
@@ -3337,9 +3369,12 @@
 
     function guessListHtml() {
       const dj = currentDjId();
-      return listedPlayers().filter((player) => player.id !== dj).map((player) => `
-        <button type="button" class="choice${player.id === state.guesserId ? ' selected' : ''}" data-action="select-guesser" data-id="${player.id}"><span>${esc(labelOf(player))}</span><span class="choice-score">${formatScore(player.score)}</span></button>
-      `).join('');
+      const ranked = listedPlayers().filter((player) => player.id !== dj).sort((a, b) => b.score - a.score || labelOf(a).localeCompare(labelOf(b), 'de'));
+      return ranked.map((player) => {
+        const picked = player.id === state.guesserId;
+        const marks = state.phase === 'mark' && picked ? marksInlineHtml() : '';
+        return `<div class="stack guess-person"><button type="button" class="choice${picked ? ' selected' : ''}" data-action="select-guesser" data-id="${player.id}"><span>${esc(labelOf(player))}</span><span class="choice-score">${formatScore(player.score)}</span></button>${marks}</div>`;
+      }).join('');
     }
 
     function renderEndedAsk() {
@@ -3614,6 +3649,7 @@
         noteAction('Phase ' + state.phase);
       }
       refreshLabels();
+      const showBuzzer = armBuzzerPage();
       const views = {
         setup: renderSetup,
         dj: renderDj,
@@ -3640,6 +3676,7 @@
       if (net.shell === 'qr') view = renderShellQr;
       if (net.shell === 'options') view = renderShellOptions;
       app.innerHTML = view() + modalHtml();
+      if (showBuzzer) requestAnimationFrame(focusBuzzer);
       paintPlayerSuggest();
       persistGame();
       syncScreenWake(false);
@@ -3664,10 +3701,9 @@
     }
 
     function paintClock() {
-      const el = document.getElementById('roundClock');
       const ring = document.getElementById('roundRing');
       const guessing = state.phase === 'guess' || state.phase === 'mark';
-      if (!el || (state.phase !== 'playing' && !guessing) || !state.round) {
+      if (!ring || (state.phase !== 'playing' && !guessing) || !state.round) {
         if (clockTimer) {
           clearInterval(clockTimer);
           clockTimer = null;
@@ -3675,7 +3711,6 @@
         return;
       }
       const ms = guessing && state.round.pendingSec != null ? state.round.pendingSec * 1000 : roundElapsedMs();
-      el.textContent = formatClock(ms);
       const dur = Number(state.round.durationMs) || 0;
       const p = dur > 0 ? Math.max(0, Math.min(1, ms / dur)) : 0;
       if (ring) ring.style.setProperty('--p', String(p));
