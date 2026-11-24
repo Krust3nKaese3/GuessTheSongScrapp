@@ -395,6 +395,7 @@
       qrPayload: '',
       devices: [],
       panel: false,
+      shell: 'index',
       rooms: [],
       detail: '',
       hostAway: false,
@@ -2823,7 +2824,7 @@
         ${deviceLineHtml()}
         ${hostActions}
         ${isHost() ? '' : guestActions}
-        <button type="button" class="btn ghost" data-action="close-multi">Schließen</button>
+        ${net.shell === 'qr' ? '' : '<button type="button" class="btn ghost" data-action="close-multi">Schließen</button>'}
       </section>`;
     }
 
@@ -3041,23 +3042,7 @@
           ${players}
           <button type="button" class="btn" data-action="start" ${state.busy || state.players.length < 2 ? 'disabled' : ''}>Spiel starten</button>
           <button type="button" class="linkish stats-link" data-action="open-players" aria-label="Gespeicherte Spieler">Statistik</button>
-          ${isGuest() ? '<section class="banner info">Spotify und alle Töne laufen nur auf dem Host.</section>' : spotifyCardHtml()}
-          <button type="button" class="btn secondary" data-action="multiplayer">Multiplayer</button>
-          ${multiplayerCardHtml()}
-          <p class="hint">Mindestens zwei Personen. Tippe einen gespeicherten Namen an oder leg Vor- und Nachname neu an. In der Runde steht der Vorname, bei gleichem Vornamen mit Nachnamen-Kürzel. Punkte dieser Runde gelten bis „Spiel beenden“. Die Allzeit-Statistik bleibt auf diesem Handy.</p>
-          <details class="card">
-            <summary>Regeln kurz</summary>
-            <ol>
-              <li>DJ auswählen und bestätigen.</li>
-              <li>Song suchen und auf Los tippen. Er startet von vorne. Jeder Song nur einmal pro Spiel.</li>
-              <li>Bei „Stopp“ den Buzzer drücken. Pause und Buzzer starten beim Auflegen des Fingers.</li>
-              <li>Wer geraten hat (nicht der DJ), dann Ja oder Nein.</li>
-              <li>Richtig: +2, Erfolgs-Ton, der Song blendet wieder ein, dann Auflösung.</li>
-              <li>Falsch: −1, Fehler-Ton, danach läuft der Song sofort in normaler Lautstärke weiter.</li>
-              <li>Überspringen: −3 für den DJ, dann Auflösung.</li>
-              <li>Song zu Ende: wurde er erraten? Ja ergibt +2, Nein −3 für den DJ.</li>
-            </ol>
-          </details>
+          ${rulesCardHtml()}
         </div>`;
     }
 
@@ -3369,6 +3354,55 @@
       </div>`;
     }
 
+    function rulesCardHtml() {
+      return `<details class="card">
+        <summary>Regeln kurz</summary>
+        <ol>
+          <li>DJ auswählen und bestätigen.</li>
+          <li>Song suchen und auf Los tippen. Er startet von vorne. Jeder Song nur einmal pro Spiel.</li>
+          <li>Bei „Stopp“ den Buzzer drücken. Pause und Buzzer starten beim Auflegen des Fingers.</li>
+          <li>Wer geraten hat (nicht der DJ), dann Ja oder Nein.</li>
+          <li>Richtig: +2, Erfolgs-Ton, der Song blendet wieder ein, dann Auflösung.</li>
+          <li>Falsch: −1, Fehler-Ton, danach läuft der Song sofort in normaler Lautstärke weiter.</li>
+          <li>Überspringen: −3 für den DJ, dann Auflösung.</li>
+          <li>Song zu Ende: wurde er erraten? Ja ergibt +2, Nein −3 für den DJ.</li>
+        </ol>
+      </details>`;
+    }
+
+    function renderShellQr() {
+      return `${headerHtml()}<div class="stack">
+        ${bannersHtml()}
+        <h2>QR-Code</h2>
+        ${multiplayerCardHtml()}
+      </div>`;
+    }
+
+    function renderShellOptions() {
+      return `${headerHtml()}<div class="stack">
+        ${bannersHtml()}
+        <h2>Optionen</h2>
+        ${isGuest() ? '<section class="banner info">Spotify und alle Töne laufen nur auf dem Host.</section>' : spotifyCardHtml()}
+        ${rulesCardHtml()}
+      </div>`;
+    }
+
+    function postShell(page) {
+      net.shell = page;
+      const host = window.ReactNativeWebView;
+      if (host && host.postMessage) host.postMessage(JSON.stringify({ type: 'shell-page', page: page }));
+    }
+
+    function applyShell(page) {
+      const next = page === 'qr' || page === 'options' ? page : 'index';
+      const prev = net.shell;
+      if (next === prev) return;
+      postShell(next);
+      if (next === 'qr') openMultiplayer();
+      else if (prev === 'qr') closeMultiplayer();
+      else render();
+    }
+
     function overlayView() {
       if (state.phase !== 'setup') return null;
       if (state.overlay === 'players') return renderPlayerDirectory;
@@ -3419,6 +3453,8 @@
         view = net.pressedBuzz ? renderPlaying : renderGuessWait;
       }
       if (!overlayView() && net.role && state.phase === 'mark') view = renderMarks;
+      if (net.shell === 'qr') view = renderShellQr;
+      if (net.shell === 'options') view = renderShellOptions;
       app.innerHTML = view() + modalHtml();
       paintPlayerSuggest();
       persistGame();
@@ -4185,6 +4221,8 @@
     }
 
     function bind() {
+      window.addEventListener('openscr-shell', (event) => applyShell(event.detail));
+      postShell('index');
       let buzzStamp = 0;
       const onBuzzDown = (event) => {
         const button = event.target && event.target.closest && event.target.closest('[data-action="buzz"]');
