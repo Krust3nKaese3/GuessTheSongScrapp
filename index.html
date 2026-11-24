@@ -357,6 +357,12 @@
   </style>
 </head>
 <body>
+  <script>
+    window.addEventListener('error', function (event) {
+      console.error('[songraten]', event.message, event.filename, event.lineno, event.error && event.error.stack);
+    });
+    console.log('[songraten] Seite geladen');
+  </script>
   <button type="button" id="bug-btn" class="bug-launcher" aria-label="Fehler melden">
     <svg viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path d="M370 378c28.89 23.52 46 46.07 46 86M142 378c-28.89 23.52-46 46.06-46 86M384 208c28.89-23.52 32-56.07 32-96M128 206c-28.89-23.52-32-54.06-32-94" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path d="M464 288.13H384M128 288.13H48M256 192v256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path d="M256 448c-70.4 0-128-57.6-128-128V223.93c0-65.07 57.6-96 128-96s128 25.6 128 96V320c0 70.4-57.6 128-128 128z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path d="M179.43 143.52A49.08 49.08 0 0 1 176 127.79 80 80 0 0 1 255.79 48h.42A80 80 0 0 1 336 127.79a41.91 41.91 0 0 1-3.12 14.3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/></svg>
   </button>
@@ -411,6 +417,7 @@
       transportPaused: false,
       holdingSfx: false,
       songsStarted: 0,
+      sfxGain: 0.4,
       startedUris: [],
       shownRecommendationUris: [],
       recommendations: [],
@@ -1334,12 +1341,37 @@
 
     const FADE_IN_MS = 900;
     const FADE_IN_STEPS = 9;
-    const SFX_VOLUME = 0.4;
-    ['sfx-buzzer', 'sfx-correct', 'sfx-wrong'].forEach((id) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      try { el.volume = SFX_VOLUME; } catch (error) {}
-    });
+    let audioCtx = null;
+    let buzzerGain = null;
+    let buzzerBuffer = null;
+    let buzzerSrcSeen = '';
+    function sfxVolume() {
+      const value = Number(state.sfxGain);
+      if (!isFinite(value)) return 0.4;
+      return Math.max(0, Math.min(1, value));
+    }
+
+    function applySfxVolume() {
+      const level = sfxVolume();
+      ['sfx-buzzer', 'sfx-correct', 'sfx-wrong'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        try { el.volume = level; } catch (error) {}
+      });
+      if (buzzerGain) buzzerGain.gain.value = level;
+    }
+
+    function loadSfxVolume() {
+      try {
+        const raw = localStorage.getItem('songraten-sfx');
+        if (raw == null || raw === '') return;
+        const saved = Number(raw);
+        if (isFinite(saved)) state.sfxGain = Math.max(0, Math.min(1, saved));
+      } catch (error) {}
+      applySfxVolume();
+    }
+
+    loadSfxVolume();
 
     let transportChain = Promise.resolve();
     let transportEpoch = 0;
@@ -1465,18 +1497,13 @@
         const capMs = known > 0 && known < 60 ? Math.ceil(known * 1000) + 150 : 1400;
         cap = setTimeout(finish, capMs);
         try { el.currentTime = 0; } catch (error) {}
-        el.volume = SFX_VOLUME;
+        el.volume = sfxVolume();
         const played = el.play();
         if (played && typeof played.then === 'function') {
           played.then(function () {}, function () { finish(); });
         }
       });
     }
-
-    let audioCtx = null;
-    let buzzerGain = null;
-    let buzzerBuffer = null;
-    let buzzerSrcSeen = '';
 
     function audioContext() {
       if (soundsBlocked()) return null;
@@ -1485,7 +1512,7 @@
       if (!Ctx) return null;
       audioCtx = new Ctx();
       buzzerGain = audioCtx.createGain();
-      buzzerGain.gain.value = SFX_VOLUME;
+      buzzerGain.gain.value = sfxVolume();
       buzzerGain.connect(audioCtx.destination);
       return audioCtx;
     }
@@ -1520,11 +1547,11 @@
       const restore = () => {
         try { el.pause(); } catch (error) {}
         try { el.currentTime = 0; } catch (error) {}
-        el.volume = SFX_VOLUME;
+        el.volume = sfxVolume();
       };
       if (played && typeof played.then === 'function') {
         played.then(restore, function () {
-          el.volume = SFX_VOLUME;
+          el.volume = sfxVolume();
           el.dataset.warm = '';
         });
       } else restore();
@@ -1583,7 +1610,7 @@
       }
       if (ctx && buzzerBuffer && buzzerGain) {
         stopSfx();
-        buzzerGain.gain.value = SFX_VOLUME;
+        buzzerGain.gain.value = sfxVolume();
         const node = ctx.createBufferSource();
         node.buffer = buzzerBuffer;
         node.connect(buzzerGain);
@@ -1678,6 +1705,29 @@
       return globalThis.OpenScrPlayers || null;
     }
 
+    function bridgePlayers() {
+      const api = globalThis.OpenScrBridge && globalThis.OpenScrBridge.players;
+      return api && typeof api.list === 'function' ? api : null;
+    }
+
+    function asRiot(player) {
+      const name = String((player && (player.name || player.first)) || '').trim();
+      const tag = String((player && player.tag) || '').trim();
+      return {
+        id: String((player && player.id) || ''),
+        name,
+        tag,
+        first: name,
+        last: tag,
+        created: Number(player && player.created) || 0
+      };
+    }
+
+    function riotLabel(player) {
+      if (!player || !player.tag) return '';
+      return String(player.name || player.first || '').trim() + '#' + player.tag;
+    }
+
     function statsApi() {
       return globalThis.OpenScrStats || null;
     }
@@ -1717,15 +1767,24 @@
     function refreshLabels() {
       const api = playerApi();
       labels = new Map();
+      const legacy = [];
+      state.players.forEach((player) => {
+        const riot = riotLabel(player);
+        if (riot) labels.set(player.id, riot);
+        else legacy.push(player);
+      });
+      if (!legacy.length) return;
       if (!api) {
-        state.players.forEach((player) => labels.set(player.id, player.name || player.first || ''));
+        legacy.forEach((player) => labels.set(player.id, player.name || player.first || ''));
         return;
       }
-      api.displayNames(state.players.map(rosterShape)).forEach((row) => labels.set(row.id, row.name));
+      api.displayNames(legacy.map(rosterShape)).forEach((row) => labels.set(row.id, row.name));
     }
 
     function labelOf(player) {
       if (!player) return '';
+      const riot = riotLabel(player);
+      if (riot) return riot;
       if (!labels.size) refreshLabels();
       if (labels.has(player.id)) return labels.get(player.id);
       return player.first || player.name || '';
@@ -1750,6 +1809,19 @@
     }
 
     function migrateRoster() {
+      const bridge = bridgePlayers();
+      if (bridge) {
+        state.players.forEach((player) => {
+          const known = player.pid && registry.find((item) => item.id === player.pid);
+          if (!known) return;
+          player.name = known.name;
+          player.tag = known.tag;
+          player.first = known.first;
+          player.last = known.last;
+        });
+        refreshLabels();
+        return;
+      }
       const api = playerApi();
       state.players.forEach((player) => {
         if (player.first) return;
@@ -1843,7 +1915,8 @@
         pid: record.id,
         first: record.first,
         last: record.last,
-        name: (record.first + ' ' + record.last).trim() || record.first,
+        name: record.name || record.first,
+        tag: record.tag || '',
         score: 0
       });
       state.draftName = '';
@@ -1874,15 +1947,21 @@
       }
       presentError(hits.length
         ? 'Mehrere Treffer. Tipp die richtige Person an.'
-        : 'Niemand passt. Leg die Person mit Vor- und Nachname neu an.');
+        : 'Niemand passt. Leg die Person mit Anzeigename und Tag neu an.');
       render();
     }
 
     function openCreate() {
       readNamingFields();
-      const parts = (state.draftName || '').trim().split(/\s+/).filter(Boolean);
-      state.draftFirst = parts[0] || '';
-      state.draftLast = parts.slice(1).join(' ');
+      const raw = (state.draftName || '').trim();
+      const hash = raw.indexOf('#');
+      if (hash >= 0) {
+        state.draftFirst = raw.slice(0, hash).trim();
+        state.draftLast = raw.slice(hash + 1).trim();
+      } else {
+        state.draftFirst = raw;
+        state.draftLast = '';
+      }
       state.creating = true;
       state.error = '';
       render();
@@ -1891,25 +1970,21 @@
     async function createAndAdd(forced) {
       if (!forced) readNamingFields();
       const api = playerApi();
-      const first = String(forced ? forced.first : (state.draftFirst || '')).trim();
-      const last = String(forced ? forced.last : (state.draftLast || '')).trim();
-      if (!api) {
+      const first = String(forced ? (forced.name || forced.first) : (state.draftFirst || '')).trim();
+      const last = String(forced ? (forced.tag || forced.last) : (state.draftLast || '')).trim();
+      const bridge = bridgePlayers();
+      if (!api && !bridge) {
         presentError('Die Spielerliste konnte nicht geladen werden.');
         render();
         return;
       }
       if (!first || !last) {
-        presentError('Bitte Vor- und Nachname eintragen.');
-        render();
-        return;
-      }
-      if (first.length > 40 || last.length > 40) {
-        presentError('Vor- und Nachname dürfen höchstens 40 Zeichen haben.');
+        presentError('Bitte Anzeigename und Tag eintragen.');
         render();
         return;
       }
       if (isGuest()) {
-        sendHost({ t: 'create', first: first, last: last });
+        sendHost({ t: 'create', name: first, tag: last, first: first, last: last });
         state.creating = false;
         state.draftFirst = '';
         state.draftLast = '';
@@ -1918,8 +1993,20 @@
       }
       const existing = findSaved(first, last);
       if (existing) {
-        state.info = existing.first + ' ' + existing.last + ' war schon gespeichert.';
+        state.info = (riotLabel(existing) || (existing.first + ' ' + existing.last)) + ' war schon gespeichert.';
         await addSavedPlayer(existing.id);
+        return;
+      }
+      if (bridge) {
+        try {
+          const created = asRiot(await bridge.add({ name: first, tag: last }));
+          rememberPlayer(created);
+          state.info = '';
+          await addSavedPlayer(created.id);
+        } catch (error) {
+          presentError((error && error.message) || 'Der Name konnte nicht gespeichert werden.');
+          render();
+        }
         return;
       }
       const created = api.createPlayer(first, last);
@@ -1960,7 +2047,7 @@
         button.dataset.pid = player.id;
         const name = document.createElement('span');
         name.className = 'player-name';
-        const full = (player.first + ' ' + player.last).trim() || player.first;
+        const full = riotLabel(player) || ((player.first + ' ' + player.last).trim() || player.first);
         paintMatch(name, full, state.draftName);
         button.appendChild(name);
         box.appendChild(button);
@@ -2071,13 +2158,13 @@
       const given = String(first || '').trim();
       const family = String(last || '').trim();
       if (isGuest()) {
-        sendHost({ t: 'rename', id: id, first: given, last: family });
+        sendHost({ t: 'rename', id: id, name: given, tag: family, first: given, last: family });
         net.renamingId = 0;
         render();
         return;
       }
       if (!given || !family) {
-        rejectRequest('Bitte Vor- und Nachname eintragen.');
+        rejectRequest('Bitte Anzeigename und Tag eintragen.');
         return;
       }
       const logic = mpLogic();
@@ -2090,14 +2177,29 @@
       }
       player.first = given;
       player.last = family;
-      player.name = (given + ' ' + family).trim();
+      player.name = given;
+      player.tag = family;
       if (player.pid) {
-        const saved = registry.find((item) => item.id === player.pid);
-        if (saved) {
-          saved.first = given;
-          saved.last = family;
-          playersDirty = true;
-          persistPlayers();
+        const bridge = bridgePlayers();
+        if (bridge) {
+          try {
+            const updated = asRiot(await bridge.update({ id: player.pid, name: given, tag: family }));
+            const saved = registry.find((item) => item.id === player.pid);
+            if (saved) Object.assign(saved, updated);
+          } catch (error) {
+            rejectRequest((error && error.message) || 'Der Name konnte nicht geändert werden.');
+            return;
+          }
+        } else {
+          const saved = registry.find((item) => item.id === player.pid);
+          if (saved) {
+            saved.first = given;
+            saved.last = family;
+            saved.name = given;
+            saved.tag = family;
+            playersDirty = true;
+            persistPlayers();
+          }
         }
       }
       net.renamingId = 0;
@@ -2884,8 +2986,8 @@
     function playerRowHtml(player) {
       if (net.renamingId === player.id) {
         return `<form class="stack" data-action="rename-player">
-          <input id="renameFirst" type="text" maxlength="40" placeholder="Vorname" autocomplete="off" value="${esc(player.first || '')}" aria-label="Vorname">
-          <input id="renameLast" type="text" maxlength="40" placeholder="Nachname" autocomplete="off" value="${esc(player.last || '')}" aria-label="Nachname">
+          <input id="renameFirst" type="text" maxlength="16" placeholder="Anzeigename" autocomplete="off" value="${esc(player.name || player.first || '')}" aria-label="Anzeigename">
+          <input id="renameLast" type="text" maxlength="5" placeholder="Tag" autocomplete="off" autocapitalize="characters" value="${esc(player.tag || player.last || '')}" aria-label="Tag">
           <button class="btn" type="submit">Speichern</button>
           <button type="button" class="btn ghost" data-action="cancel-rename">Zurück</button>
         </form>`;
@@ -3098,8 +3200,8 @@
         return `<button type="button" class="btn secondary" data-action="new-player">Neue Person</button>`;
       }
       return `<form class="stack" data-action="create-player">
-        <input id="playerFirst" type="text" maxlength="40" placeholder="Vorname" autocomplete="off" autocapitalize="words" value="${esc(state.draftFirst)}" aria-label="Vorname">
-        <input id="playerLast" type="text" maxlength="40" placeholder="Nachname" autocomplete="off" autocapitalize="words" value="${esc(state.draftLast)}" aria-label="Nachname">
+        <input id="playerFirst" type="text" maxlength="16" placeholder="Anzeigename" autocomplete="off" autocapitalize="words" value="${esc(state.draftFirst)}" aria-label="Anzeigename">
+        <input id="playerLast" type="text" maxlength="5" placeholder="Tag" autocomplete="off" autocapitalize="characters" value="${esc(state.draftLast)}" aria-label="Tag">
         <button class="btn" type="submit">Speichern und hinzufügen</button>
         <button type="button" class="btn ghost" data-action="cancel-create">Zurück</button>
       </form>`;
@@ -3460,7 +3562,7 @@
 
     function personTitle(player) {
       if (!player) return 'Unbekannt';
-      return (player.first + ' ' + player.last).trim() || player.first || 'Unbekannt';
+      return riotLabel(player) || (player.first + ' ' + player.last).trim() || player.first || 'Unbekannt';
     }
 
     function renderPlayerDirectory() {
@@ -3592,7 +3694,11 @@
       return `${headerHtml()}<div class="stack">
         ${bannersHtml()}
         <h2>Optionen</h2>
-        ${isGuest() ? '<section class="banner info">Spotify und alle Töne laufen nur auf dem Host.</section>' : spotifyCardHtml()}
+        ${isGuest() ? '<section class="banner info">Spotify und alle Töne laufen nur auf dem Host.</section>' : `<section class="card stack">
+          <label class="field-label" for="sfxVolume">Soundeffekte</label>
+          <input id="sfxVolume" type="range" min="0" max="100" step="1" value="${Math.round(sfxVolume() * 100)}" aria-label="Lautstärke der Soundeffekte">
+          <p class="hint">Lauter oder leiser als die Musik. Gilt für Buzzer, richtig und falsch.</p>
+        </section>${spotifyCardHtml()}`}
         ${rulesCardHtml()}
       </div>`;
     }
@@ -3842,7 +3948,7 @@
     }
 
     function persistPlayers() {
-      if (isGuest() || browserGuestShell()) return Promise.resolve();
+      if (isGuest() || browserGuestShell() || bridgePlayers()) return Promise.resolve();
       if (!saveReady) return Promise.resolve();
       const touchBridge = playersReadOk || playersDirty;
       if (!touchBridge) return Promise.resolve();
@@ -3984,6 +4090,20 @@
     }
 
     async function loadPlayers() {
+      const bridge = bridgePlayers();
+      if (bridge) {
+        try {
+          console.log('[songraten] players.list');
+          const rows = await bridge.list();
+          console.log('[songraten] players.list fertig', Array.isArray(rows) ? rows.length : rows);
+          registry = (Array.isArray(rows) ? rows : []).map(asRiot).filter((player) => player.id && player.name && player.tag);
+          playersReadOk = true;
+          return;
+        } catch (error) {
+          console.error('[songraten] players.list fehlgeschlagen', error && error.message ? error.message : error);
+          playersReadOk = false;
+        }
+      }
       const raw = await readStored(PLAYERS_KEY, (ok) => { playersReadOk = ok; });
       registry = normalizeRegistry(parseSaved(raw));
     }
@@ -4595,6 +4715,11 @@
         if (event.target.id === 'playerLast') state.draftLast = event.target.value;
         if (event.target.id === 'hotSsid') net.hotSsid = event.target.value;
         if (event.target.id === 'hotPass') net.hotPass = event.target.value;
+        if (event.target.id === 'sfxVolume') {
+          state.sfxGain = Math.max(0, Math.min(1, Number(event.target.value) / 100));
+          applySfxVolume();
+          try { localStorage.setItem('songraten-sfx', String(state.sfxGain)); } catch (error) {}
+        }
         if (event.target.id === 'searchQuery') {
           state.draftQuery = event.target.value;
           persistGame();
@@ -4710,7 +4835,7 @@
       return logic.shareState({
         phase: state.phase,
         players: state.players,
-        directory: registry.map((player) => ({ id: player.id, first: player.first, last: player.last })),
+        directory: registry.map((player) => ({ id: player.id, name: player.name || player.first, tag: player.tag || '', first: player.first, last: player.last })),
         djId: state.djId,
         guesserId: state.guesserId,
         songsStarted: state.songsStarted,
@@ -4946,9 +5071,10 @@
       const players = (msg.players || []).map((player) => ({
         id: Number(player.id),
         pid: player.pid || '',
-        first: player.first || '',
-        last: player.last || '',
-        name: ((player.first || '') + ' ' + (player.last || '')).trim(),
+        first: player.first || player.name || '',
+        last: player.tag || player.last || '',
+        name: player.name || player.first || '',
+        tag: player.tag || '',
         score: Number(player.score) || 0
       })).filter((player) => player.id);
       if (players.length) {
@@ -5643,6 +5769,7 @@
     }
 
     async function init() {
+      console.log('[songraten] init', bridgePlayers() ? 'mit gemeinsamer Namensliste' : 'ohne Namensbrücke');
       bindWakeVideo();
       bind();
       subscribe();

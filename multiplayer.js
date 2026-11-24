@@ -199,13 +199,17 @@
         id: player.id,
         pid: player.pid || '',
         first: clip(player.first, 40),
-        last: clip(player.last, 40),
+        last: clip(player.tag || player.last, 8),
+        name: clip(player.name || player.first, 40),
+        tag: clip(player.tag || '', 8),
         score: Number(player.score) || 0
       })),
       directory: Array.isArray(src.directory) ? src.directory.map((player) => ({
         id: player.id,
-        first: clip(player.first, 40),
-        last: clip(player.last, 40)
+        first: clip(player.name || player.first, 40),
+        last: clip(player.tag || player.last, 8),
+        name: clip(player.name || player.first, 40),
+        tag: clip(player.tag || '', 8)
       })) : [],
       djId: src.djId == null ? null : src.djId,
       guesserId: src.guesserId == null ? null : src.guesserId,
