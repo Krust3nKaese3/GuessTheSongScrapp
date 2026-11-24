@@ -1762,7 +1762,7 @@
 
     function riotLabel(player) {
       if (!player || !player.tag) return '';
-      return String(player.name || player.first || '').trim() + '#' + player.tag;
+      return String(player.name || player.first || '').trim() + ' #' + player.tag;
     }
 
     function statsApi() {
@@ -3359,6 +3359,42 @@
       return true;
     }
 
+    function mountSharedQr() {
+      const el = document.getElementById('openscr-qr');
+      if (!el || !window.OpenScrQr || net.shell !== 'qr') return;
+      window.OpenScrQr.attach(el, {
+        onScan: () => { joinByQr(); },
+        onHost: () => { net.hostLink = 'wlan'; paintHostQr(); },
+        onDownload: () => { paintDownloadQr(); },
+        onWlan: () => { net.hostLink = 'wlan'; paintHostQr(); },
+        onHotspot: () => { net.hostLink = 'hotspot'; paintHostQr(); },
+        onHotspotShow: (draft) => {
+          net.hotSsid = draft.ssid || '';
+          net.hotPass = draft.pass || '';
+          paintHostQr();
+        },
+        onCopy: () => { copyQrLink(); },
+        onShare: () => { shareQrLink(); },
+        onStop: () => {
+          net.qrPanel = '';
+          net.qrImage = '';
+          net.qrShare = '';
+          endRoom();
+        }
+      });
+      window.OpenScrQr.setModel({
+        open: net.qrPanel || '',
+        hostLink: net.hostLink || 'wlan',
+        ssid: net.hotSsid || '',
+        pass: net.hotPass || '',
+        note: net.qrNote || '',
+        image: net.qrImage || '',
+        share: net.qrShare || '',
+        copied: !!net.qrCopied,
+        requests: []
+      });
+    }
+
     function mountRoster() {
       const el = document.getElementById('openscr-roster');
       if (!el || !window.OpenScrRoster) return;
@@ -3803,6 +3839,12 @@
     }
 
     function renderShellQr() {
+      if (window.OpenScrQr) {
+        return `${headerHtml()}<div class="stack">
+          ${bannersHtml(false)}
+          <div id="openscr-qr"></div>
+        </div>`;
+      }
       const hostExtra = net.qrPanel !== 'host' ? '' : `
         <div class="row">
           <button type="button" class="btn${net.hostLink === 'wlan' ? '' : ' ghost'}" data-action="qr-wlan">WLAN</button>
@@ -3922,6 +3964,7 @@
       if (net.shell === 'options') view = renderShellOptions;
       app.innerHTML = view() + modalHtml();
       mountRoster();
+      mountSharedQr();
       if (showBuzzer) requestAnimationFrame(focusBuzzer);
       paintPlayerSuggest();
       persistGame();
