@@ -197,8 +197,17 @@
     .suggest {
       background: #17171c;
       border-radius: 16px;
-      overflow: hidden;
+      overflow-x: hidden;
+      overflow-y: auto;
+      max-height: 260px;
       gap: 0;
+      -webkit-overflow-scrolling: touch;
+      touch-action: none;
+      overscroll-behavior: contain;
+    }
+    .suggest .choice,
+    .suggest .player-name {
+      touch-action: none;
     }
     .suggest .choice {
       border: 0;
@@ -206,8 +215,36 @@
       border-bottom: 1px solid rgba(255, 255, 255, 0.05);
       background: transparent;
       min-height: 52px;
+      flex-shrink: 0;
     }
     .suggest .choice:last-child { border-bottom: 0; }
+    .suggest .choice.pressed,
+    .suggest .choice:active { background: rgba(163, 230, 53, 0.22); }
+    .suggest .choice.in-game { box-shadow: none; }
+    .suggest-row { display: flex; align-items: stretch; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+    .suggest-row:last-child { border-bottom: 0; }
+    .suggest-row.in-game { box-shadow: inset 0 0 0 2px #A3E635; }
+    .suggest > :first-child {
+      border-top-left-radius: 16px;
+      border-top-right-radius: 16px;
+      overflow: hidden;
+    }
+    .suggest > :last-child {
+      border-bottom-left-radius: 16px;
+      border-bottom-right-radius: 16px;
+      overflow: hidden;
+    }
+    .suggest-row .choice { flex: 1; width: auto; border-bottom: 0; }
+    .suggest .icon-btn {
+      width: 44px;
+      height: auto;
+      flex: 0 0 44px;
+      border-radius: 0;
+      background: transparent;
+      color: #d4d4d8;
+    .suggest .icon-btn.pressed,
+    .suggest .icon-btn:active { background: rgba(163, 230, 53, 0.22); color: #A3E635; }
+    #addedPlayers:empty { display: none; }
     .suggest .hint { padding: 12px 14px; }
     .stage { min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 18px; text-align: center; padding-top: 8px; }
     .round-head { display: flex; align-items: center; justify-content: center; gap: 14px; }
@@ -294,7 +331,7 @@
     .reveal-artist { font-size: 22px; color: #A3E635; margin-top: 6px; overflow-wrap: anywhere; }
     .rank { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08); font-size: 18px; }
     .rank strong { font-size: 22px; }
-    .suggest { display: flex; flex-direction: column; gap: 8px; }
+    .suggest { display: flex; flex-direction: column; gap: 0; max-height: 260px; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: none; overscroll-behavior: contain; }
     .stat-list { display: flex; flex-direction: column; gap: 10px; }
     .stat-item { padding-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
     .stat-item:last-child { border-bottom: 0; padding-bottom: 0; }
@@ -1794,6 +1831,25 @@
       return state.players.map((player) => player.pid).filter(Boolean);
     }
 
+    function seatedMatch(player) {
+      if (!player) return null;
+      const pid = String(player.id || '');
+      if (pid) {
+        const byPid = state.players.find((seat) => String(seat.pid || '') === pid);
+        if (byPid) return byPid;
+      }
+      const label = (riotLabel(player) || String(player.name || player.first || '')).trim().toLocaleLowerCase();
+      if (!label) return null;
+      return state.players.find((seat) => {
+        const seated = (riotLabel(seat) || String(seat.name || seat.first || '')).trim().toLocaleLowerCase();
+        return seated === label;
+      }) || null;
+    }
+
+    function alreadySeated(player) {
+      return !!seatedMatch(player);
+    }
+
     function findSaved(first, last) {
       const api = playerApi();
       if (!api) return null;
@@ -1927,8 +1983,18 @@
       lobbyDirty = true;
       const saved = persistLobby();
       if (isHost()) publish();
-      render();
+      if (document.activeElement && document.activeElement.id === 'playerName') {
+        paintAddedPlayers();
+        paintPlayerSuggest();
+      } else render();
       return saved;
+    }
+
+    function paintAddedPlayers() {
+      const box = document.getElementById('addedPlayers');
+      if (box) box.innerHTML = listedPlayers().map((player) => playerRowHtml(player)).join('');
+      const start = document.querySelector('#app [data-action="start"]');
+      if (start) start.disabled = !!(state.busy || state.players.length < 2);
     }
 
     function submitPlayerQuery() {
@@ -2027,9 +2093,11 @@
       if (!box) return;
       const api = playerApi();
       box.replaceChildren();
+      const field = document.getElementById('playerName');
+      if (!field || document.activeElement !== field) return;
       if (!api || state.creating || state.overlay) return;
       if (state.phase !== 'setup' && !(net.role && state.phase === 'dj')) return;
-      const hits = api.search(directorySource(), state.draftName, rosterPids()).slice(0, 8);
+      const hits = api.search(directorySource(), state.draftName, []).slice(0, 30);
       if (!hits.length) {
         if ((state.draftName || '').trim()) {
           const hint = document.createElement('p');
@@ -2042,15 +2110,34 @@
       hits.forEach((player) => {
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = 'choice';
+        const seated = alreadySeated(player);
+        button.className = seated ? 'choice in-game' : 'choice';
         button.dataset.action = 'add-saved';
         button.dataset.pid = player.id;
+        if (seated) button.dataset.inGame = '1';
+        button.addEventListener('mousedown', (event) => event.preventDefault());
         const name = document.createElement('span');
         name.className = 'player-name';
         const full = riotLabel(player) || ((player.first + ' ' + player.last).trim() || player.first);
         paintMatch(name, full, state.draftName);
         button.appendChild(name);
-        box.appendChild(button);
+        const seat = seatedMatch(player);
+        if (!seat) {
+          box.appendChild(button);
+          return;
+        }
+        const row = document.createElement('div');
+        row.className = 'suggest-row in-game';
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'icon-btn';
+        remove.dataset.action = 'remove-player';
+        remove.dataset.id = String(seat.id);
+        remove.setAttribute('aria-label', full + ' entfernen');
+        remove.textContent = '✕';
+        remove.addEventListener('mousedown', (event) => event.preventDefault());
+        row.append(button, remove);
+        box.appendChild(row);
       });
     }
 
@@ -2150,7 +2237,10 @@
       lobbyDirty = true;
       const saved = persistLobby();
       if (isHost()) publish();
-      render();
+      if (document.activeElement && document.activeElement.id === 'playerName') {
+        paintAddedPlayers();
+        paintPlayerSuggest();
+      } else render();
       await saved;
     }
 
@@ -2999,9 +3089,7 @@
     }
 
     function namesFoldHtml() {
-      const rows = state.players.length
-        ? listedPlayers().map((player) => playerRowHtml(player)).join('')
-        : '<p class="hint">Noch niemand eingetragen.</p>';
+      const rows = `<div id="addedPlayers">${listedPlayers().map((player) => playerRowHtml(player)).join('')}</div>`;
       const plus = '<svg viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path d="M256 112v288M400 256H112" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/></svg>';
       const body = net.namesOpen ? `<div class="stack">
         <form class="stack" data-action="add-player">
@@ -3244,14 +3332,11 @@
     }
 
     function renderSetup() {
-      const players = state.players.length
-        ? `<div class="roster">${listedPlayers().map((player) => playerRowHtml(player)).join('')}</div>`
-        : '<p class="hint">Noch niemand eingetragen.</p>';
+      const players = `<div id="addedPlayers" class="roster">${listedPlayers().map((player) => playerRowHtml(player)).join('')}</div>`;
       return `${headerHtml()}
         <div class="stack">
           ${bannersHtml()}
         ${reconnectHtml()}
-          <p class="field-label">Spieler</p>
           <form class="stack" data-action="add-player">
             <input id="playerName" type="text" maxlength="80" placeholder="Name eingeben" autocomplete="off" autocapitalize="words" value="${esc(state.draftName)}" aria-label="Name suchen">
           </form>
@@ -4038,7 +4123,7 @@
         if (!id || !(name || first)) return null;
         return {
           id: id,
-          pid: pid.indexOf('p_') === 0 ? pid : '',
+          pid: pid,
           name: name || (first + ' ' + last).trim(),
           first: first,
           last: last,
@@ -4506,8 +4591,17 @@
       if (action === 'cancel-rename') { net.renamingId = 0; render(); return; }
       if (action === 'judge-cancel') { net.confirmJudge = ''; render(); return; }
       if (action === 'undo-judge') { undoJudgement(); return; }
-      if (action === 'remove-player') await removePlayer(Number(button.dataset.id));
-      if (action === 'add-saved') await addSavedPlayer(button.dataset.pid);
+      if (action === 'remove-player') {
+        if (button.closest('#playerSuggestions')) {
+          button.classList.add('pressed');
+          await new Promise((resolve) => setTimeout(resolve, 140));
+        }
+        await removePlayer(Number(button.dataset.id));
+      }
+      if (action === 'add-saved') {
+        if (suggestPick || button.dataset.inGame === '1') { suggestPick = false; return; }
+        await addSavedPlayer(button.dataset.pid);
+      }
       if (action === 'new-player') openCreate();
       if (action === 'cancel-create') {
         state.creating = false;
@@ -4637,8 +4731,68 @@
       });
     }
 
+    let suggestMoved = false;
+    let suggestPick = false;
+    let suggestButton = null;
+    let suggestRemove = null;
+
+    function bindSuggestDrag() {
+      let box = null;
+      let lastY = 0;
+      let moved = false;
+      app.addEventListener('pointerdown', (event) => {
+        const button = event.target && event.target.closest && event.target.closest('#playerSuggestions [data-action="add-saved"]');
+        const remove = event.target && event.target.closest && event.target.closest('#playerSuggestions [data-action="remove-player"]');
+        suggestButton = button || null;
+        suggestRemove = remove || null;
+        suggestMoved = false;
+        if (button) button.classList.add('pressed');
+        if (remove) remove.classList.add('pressed');
+      });
+      app.addEventListener('pointerup', () => {
+        const button = suggestButton;
+        suggestButton = null;
+        if (!button || suggestMoved) return;
+        if (button.dataset.inGame === '1') {
+          window.setTimeout(() => button.classList.remove('pressed'), 160);
+          return;
+        }
+        suggestPick = true;
+        addSavedPlayer(button.dataset.pid);
+      });
+      app.addEventListener('touchstart', (event) => {
+        const hit = event.target && event.target.closest && event.target.closest('#playerSuggestions');
+        if (!hit || !event.touches.length) return;
+        box = hit;
+        lastY = event.touches[0].clientY;
+        moved = false;
+        suggestMoved = false;
+      }, { passive: true });
+      app.addEventListener('touchmove', (event) => {
+        if (!box || !event.touches.length) return;
+        const y = event.touches[0].clientY;
+        const dy = lastY - y;
+        if (Math.abs(dy) > 8) {
+          moved = true;
+          suggestMoved = true;
+          if (suggestButton) suggestButton.classList.remove('pressed');
+          if (suggestRemove) suggestRemove.classList.remove('pressed');
+        }
+        lastY = y;
+        box.scrollTop += dy;
+        if (event.cancelable) event.preventDefault();
+      }, { passive: false });
+      const end = (event) => {
+        if (box && moved && event.cancelable) event.preventDefault();
+        box = null;
+      };
+      app.addEventListener('touchend', end, { passive: false });
+      app.addEventListener('touchcancel', end, { passive: false });
+    }
+
     function bind() {
       bindBugReport();
+      bindSuggestDrag();
       window.addEventListener('openscr-shell', (event) => applyShell(event.detail));
       postShell('index');
       let buzzStamp = 0;
@@ -4697,6 +4851,16 @@
           const last = document.getElementById('renameLast');
           renamePlayer(net.renamingId, first ? first.value : '', last ? last.value : '');
         }
+      });
+      app.addEventListener('focusin', (event) => {
+        if (event.target.id === 'playerName') paintPlayerSuggest();
+      });
+      app.addEventListener('focusout', (event) => {
+        if (event.target.id !== 'playerName') return;
+        const next = event.relatedTarget;
+        if (next && next.closest && next.closest('#playerSuggestions')) return;
+        const box = document.getElementById('playerSuggestions');
+        if (box) box.replaceChildren();
       });
       app.addEventListener('input', (event) => {
         if (event.target.id === 'playerName' || event.target.id === 'playerFirst' || event.target.id === 'playerLast' || event.target.id === 'searchQuery') {
