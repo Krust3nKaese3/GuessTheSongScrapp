@@ -215,6 +215,10 @@
       error: clip(src.error, 240),
       buzzDevice: src.buzzDevice ? String(src.buzzDevice) : '',
       searcherId: src.searcherId ? String(src.searcherId) : '',
+      searchers: Array.isArray(src.searchers) ? src.searchers.map((row) => ({
+        device: String(row && row.device || ''),
+        djId: Number(row && row.djId)
+      })).filter((row) => row.device && row.djId).slice(0, 16) : [],
       hold: Boolean(src.hold),
       scoredPid: src.scoredPid ? String(src.scoredPid) : '',
       revokePid: src.revokePid ? String(src.revokePid) : '',

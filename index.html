@@ -22,6 +22,8 @@
     header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
     h1 { font-size: 34px; line-height: 1.05; margin: 0; font-weight: 760; letter-spacing: -0.03em; }
     h2 { font-size: 22px; line-height: 1.2; margin: 0 0 8px; font-weight: 700; }
+    .page-head { display: flex; align-items: center; gap: 10px; }
+    .page-head h2 { margin: 0; }
     p { margin: 0; }
     .eyebrow { margin: 0 0 4px; letter-spacing: 0.08em; text-transform: uppercase; font-size: 12px; color: #A3E635; font-weight: 700; }
     .lead, .hint { color: #a1a1aa; line-height: 1.45; }
@@ -55,6 +57,18 @@
       font-size: 17px;
     }
     input[type="text"]::placeholder { color: #71717a; }
+    .search-field { position: relative; }
+    .search-field input { padding-right: 52px; }
+    .search-field .icon-btn {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      width: 40px;
+      height: 40px;
+      flex-basis: 40px;
+      transform: translateY(-50%);
+      background: transparent;
+    }
     .btn {
       min-height: 56px;
       border: 0;
@@ -72,6 +86,43 @@
     .btn.bad { background: #3a2024; color: #ffd0c8; }
     .btn:disabled { opacity: 1; background: #2a2a32; color: #71717a; }
     .btn.small { min-height: 44px; padding: 8px 12px; font-size: 15px; }
+    .qr-panel { border: 2px solid rgba(255, 255, 255, 0.18); border-radius: 999px; }
+    .qr-panel.is-open { border-radius: 28px; padding: 0 14px 14px; display: flex; flex-direction: column; gap: 14px; }
+    .qr-panel .qr-btn { border: 0; width: 100%; background: transparent; }
+    .qr-btn { display: flex; align-items: center; justify-content: space-between; text-align: left; }
+    .qr-btn svg { width: 22px; height: 22px; flex: 0 0 auto; }
+    .qr-image { width: min(72vw, 280px); height: auto; align-self: center; background: #fff; border-radius: 16px; padding: 12px; }
+    .bug-launcher {
+      position: fixed;
+      top: calc(10px + env(safe-area-inset-top));
+      right: 10px;
+      z-index: 40;
+      width: 40px;
+      height: 40px;
+      border: 0;
+      border-radius: 14px;
+      background: #17171c;
+      color: #8E8E93;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    .bug-launcher svg { width: 22px; height: 22px; display: block; }
+    #bug-panel {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(0, 0, 0, 0.55);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 16px;
+    }
+    #bug-panel[hidden] { display: none; }
+    .bug-card { width: min(100%, 520px); background: #17171c; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .bug-card textarea { min-height: 120px; padding: 12px; }
+    header { padding-right: 46px; }
     .linkish {
       background: transparent;
       border: 0;
@@ -95,8 +146,13 @@
       justify-content: space-between;
       gap: 10px;
     }
-    .choice.selected, .track.selected { border-color: #A3E635; background: rgba(163, 230, 53, 0.12); }
+    .choice.selected, .track.selected, .choice.searching { border-color: #A3E635; background: rgba(163, 230, 53, 0.12); }
+    .choice-row { display: flex; align-items: center; gap: 8px; }
+    .choice-row .choice { flex: 1; width: auto; }
+    .choice-score { font-weight: 800; color: #A3E635; }
     .track.started { border-color: rgba(255, 224, 138, 0.55); }
+    .track .track-go { display: none; width: 40px; height: 40px; flex: 0 0 40px; }
+    .track:hover .track-go, .track.selected .track-go, .track:focus-within .track-go { display: inline-flex; }
     .played-tag {
       flex: 0 0 auto;
       background: #ffe08a;
@@ -125,20 +181,6 @@
       padding: 0;
     }
     .icon-btn svg { width: 22px; height: 22px; display: block; }
-    .scores { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
-    .chip {
-      flex: 0 0 auto;
-      background: rgba(255, 255, 255, 0.08);
-      border-radius: 999px;
-      padding: 8px 12px;
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      font-size: 15px;
-    }
-    .chip.is-dj { outline: 2px solid #A3E635; }
-    .chip-score { font-weight: 800; }
-    .chip-role { font-size: 11px; letter-spacing: 0.06em; color: #A3E635; font-weight: 800; }
     .roster { display: flex; flex-wrap: wrap; gap: 8px; }
     .roster .player {
       width: auto;
@@ -199,6 +241,7 @@
     .eq span:nth-child(3n) { animation-duration: 1.25s; height: 22px; }
     .eq span:nth-child(4n) { animation-delay: 0.2s; }
     .eq span:nth-child(5n) { animation-delay: 0.35s; }
+    .eq.paused span { animation-play-state: paused; }
     @keyframes bounce {
       0%, 100% { transform: scaleY(0.45); }
       50% { transform: scaleY(2.4); }
@@ -239,7 +282,6 @@
       padding: 11px 0;
       font-size: 17px;
     }
-    .host-note { color: #a1a1aa; font-size: 15px; text-align: center; }
     .reveal-title { font-size: 34px; line-height: 1.15; margin: 0; overflow-wrap: anywhere; }
     .reveal-artist { font-size: 22px; color: #A3E635; margin-top: 6px; overflow-wrap: anywhere; }
     .rank { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08); font-size: 18px; }
@@ -295,13 +337,32 @@
       height: min(42vw, 200px);
       border: 0;
       border-radius: 32px;
-      font-size: 92px;
-      line-height: 1;
-      font-weight: 900;
+      background: #141418;
+      color: #f4f4f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
+    .mark svg { width: 96px; height: 96px; }
+    .mark.good { color: #A3E635; }
+    .mark.bad { color: #f43f5e; }
   </style>
 </head>
 <body>
+  <button type="button" id="bug-btn" class="bug-launcher" aria-label="Fehler melden">
+    <svg viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path d="M370 378c28.89 23.52 46 46.07 46 86M142 378c-28.89 23.52-46 46.06-46 86M384 208c28.89-23.52 32-56.07 32-96M128 206c-28.89-23.52-32-54.06-32-94" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path d="M464 288.13H384M128 288.13H48M256 192v256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path d="M256 448c-70.4 0-128-57.6-128-128V223.93c0-65.07 57.6-96 128-96s128 25.6 128 96V320c0 70.4-57.6 128-128 128z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path d="M179.43 143.52A49.08 49.08 0 0 1 176 127.79 80 80 0 0 1 255.79 48h.42A80 80 0 0 1 336 127.79a41.91 41.91 0 0 1-3.12 14.3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/></svg>
+  </button>
+  <div id="bug-panel" hidden>
+    <div class="bug-card">
+      <h2>Fehler melden</h2>
+      <p class="hint">Der Bericht enthält den Spielstand. Gib ihn nur Leuten, die die Runde kennen dürfen.</p>
+      <label for="bug-text">Was ist schiefgelaufen?</label>
+      <textarea id="bug-text" rows="5" placeholder="Zum Beispiel: Der Buzzer hat gezählt, aber der Song lief weiter."></textarea>
+      <button type="button" id="bug-copy" class="btn">Kopieren</button>
+      <p id="bug-status" class="hint" role="status"></p>
+      <button type="button" id="bug-close" class="btn secondary">Zurück</button>
+    </div>
+  </div>
   <div id="app"></div>
   <audio id="sfx-buzzer" preload="none" hidden></audio>
   <audio id="sfx-correct" preload="none" hidden></audio>
@@ -396,12 +457,25 @@
       devices: [],
       panel: false,
       shell: 'index',
+      namesOpen: false,
+      confirmRemove: 0,
+      qrPanel: '',
+      hostLink: 'wlan',
+      qrImage: '',
+      qrShare: '',
+      qrNote: '',
+      qrCopied: false,
+      hotSsid: '',
+      hotPass: '',
       rooms: [],
       detail: '',
       hostAway: false,
       buzzDevice: '',
       pressedBuzz: false,
       searcherId: '',
+      searchers: [],
+      localSearch: false,
+      acceptingLos: false,
       localLock: false,
       hostPaused: false,
       confirmJudge: '',
@@ -450,8 +524,16 @@
       try { return JSON.stringify(error); } catch (e) { return String(error); }
     }
 
+    const actionLog = [];
+
+    function noteAction(message) {
+      actionLog.push({ t: Date.now(), m: String(message) });
+      if (actionLog.length > 80) actionLog.splice(0, actionLog.length - 80);
+    }
+
     function presentError(error) {
       const text = errText(error);
+      noteAction('Fehler: ' + text);
       if (text.indexOf(NO_CLIENT_ID) !== -1) {
         state.error = NO_CLIENT_ID + ' Trag sie in OpenScr auf dem Startbildschirm unter Spotify ein. Dieses Spiel speichert keine Client ID.';
         return;
@@ -1069,13 +1151,13 @@
       try {
         await ensureReady();
         const picks = await buildRecommendations();
-        if (token !== recsToken || state.phase !== 'search' || state.djId !== djAtStart) return;
+        if (token !== recsToken || !searchOpen() || state.djId !== djAtStart) return;
         picks.forEach((track) => rememberShown(track.uri));
         state.recommendations = picks;
         state.recsReady = true;
         state.recsNote = picks.length ? '' : 'Keine passenden Empfehlungen.';
       } catch (error) {
-        if (token !== recsToken || state.phase !== 'search' || state.djId !== djAtStart) return;
+        if (token !== recsToken || !searchOpen() || state.djId !== djAtStart) return;
         state.recommendations = [];
         state.recsReady = false;
         presentError(error);
@@ -1225,12 +1307,6 @@
     }
 
     function paintTransport() {
-      const el = document.getElementById('playState');
-      if (el) {
-        el.textContent = state.transportPaused
-          ? 'Die Wiedergabe ist pausiert. Titel und Interpret bleiben verdeckt.'
-          : 'Der Song läuft über die Box. Titel und Interpret bleiben verdeckt.';
-      }
       const resume = document.getElementById('resumeBtn');
       if (resume) resume.hidden = state.holdingSfx || !state.transportPaused;
       const box = document.getElementById('unconfirmed');
@@ -2052,7 +2128,7 @@
         state.round = null;
         state.info = net.role
           ? 'Jede Runde wählt ein Handy den DJ. Suchen und Los gehen auf jedem Handy, Spotify spielt nur hier.'
-          : 'Wer das Handy hält, ist der DJ und sucht den Song aus.';
+          : '';
         net.buzzDevice = '';
         net.searcherId = '';
         net.undo = null;
@@ -2064,26 +2140,44 @@
     function selectDj(id) {
       if (!playerById(id)) return;
       state.djId = id;
-      render();
+      confirmDj();
     }
 
     function backNameActs() {
+      if (net.localSearch) return true;
       if (net.role && (state.phase === 'search' || state.phase === 'mark') && isGuest()) return true;
       if (state.phase === 'mark' || state.phase === 'search' || state.phase === 'endedWho') return true;
-      if (state.phase === 'dj') return Boolean(state.djId || net.djSent);
       if (state.phase === 'guess') return Boolean(state.guesserId);
       return false;
     }
 
     function backNameButtonHtml() {
       if (!backNameActs()) return '';
-      return '<button type="button" class="btn ghost" data-action="back-name">Zurück</button>';
+      const icon = '<svg viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path d="M244 400 100 256l144-144M120 256h292" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="48"/></svg>';
+      return `<button type="button" class="icon-btn" data-action="back-name" aria-label="Zurück">${icon}</button>`;
+    }
+
+    function pageTitle(text) {
+      return `<div class="page-head">${backNameButtonHtml()}<h2>${text}</h2></div>`;
     }
 
     function backName() {
+      if (net.localSearch) {
+        leaveLocalSearch();
+        return;
+      }
       if (!backNameActs()) return;
-      if (net.role && (state.phase === 'search' || state.phase === 'mark') && isGuest()) {
+      if (net.role && state.phase === 'search' && isGuest()) {
         sendHost({ t: 'back' });
+        return;
+      }
+      if (net.role && state.phase === 'mark' && isGuest()) {
+        state.phase = 'guess';
+        state.guesserId = null;
+        net.confirmJudge = '';
+        net.pickedLocal = false;
+        sendHost({ t: 'back' });
+        render();
         return;
       }
       if (state.phase === 'mark') {
@@ -2146,15 +2240,43 @@
       }
     }
 
-    function confirmDj() {
-      if (!playerById(state.djId)) {
-        presentError('Bitte zuerst auswählen, wer DJ ist.');
+    function searchOpen() {
+      return state.phase === 'search' || net.localSearch || net.acceptingLos;
+    }
+
+    function noteSearcher(device, djId) {
+      const id = Number(djId);
+      if (!device || !id) return;
+      net.searchers = (net.searchers || []).filter((row) => String(row.device) !== String(device));
+      net.searchers.push({ device: String(device), djId: id });
+    }
+
+    function dropSearcher(device) {
+      net.searchers = (net.searchers || []).filter((row) => String(row.device) !== String(device));
+    }
+
+    function leaveLocalSearch() {
+      net.localSearch = false;
+      net.djSent = false;
+      state.picked = null;
+      state.results = [];
+      state.draftQuery = '';
+      state.error = '';
+      state.info = '';
+      clearVisibleRecommendations();
+      if (isGuest()) {
+        sendHost({ t: 'back' });
         render();
         return;
       }
-      if (isGuest()) {
-        net.djSent = true;
-        sendHost({ t: 'dj', id: state.djId });
+      dropSearcher(net.selfId);
+      if (isHost()) publish();
+      render();
+    }
+
+    function confirmDj() {
+      if (!playerById(state.djId)) {
+        presentError('Bitte zuerst auswählen, wer DJ ist.');
         render();
         return;
       }
@@ -2162,11 +2284,23 @@
       state.results = [];
       state.draftQuery = '';
       clearVisibleRecommendations();
-      state.phase = 'search';
       state.error = '';
-      state.info = 'Nur der DJ schaut auf diese Seite. Hier stehen Titel und Interpret.';
-      net.searcherId = '';
+      state.info = '';
       net.undo = null;
+      if (!net.role) {
+        state.phase = 'search';
+        net.searcherId = '';
+        render();
+        return;
+      }
+      net.localSearch = true;
+      if (isGuest()) {
+        net.djSent = true;
+        sendHost({ t: 'dj', id: state.djId });
+        render();
+        return;
+      }
+      noteSearcher(net.selfId, state.djId);
       if (isHost()) publish();
       render();
     }
@@ -2192,11 +2326,11 @@
         publish();
       }
       await withBusy(async () => {
-        if (state.phase !== 'search') return;
+        if (!searchOpen()) return;
         await ensureReady();
-        if (state.phase !== 'search') return;
+        if (!searchOpen()) return;
         const found = await requireApi().search(query, { types: ['track'], limit: 8 });
-        if (state.phase !== 'search') return;
+        if (!searchOpen()) return;
         state.results = normalizeTracks(found);
         const stillVisible = state.picked && (
           state.results.some((track) => sameTrack(track, state.picked))
@@ -2217,32 +2351,31 @@
 
     async function los() {
       if (isGuest()) {
-        if (state.phase !== 'search' || !state.picked) return;
+        if (!net.localSearch || !state.picked) return;
         state.busy = true;
         render();
         sendHost({ t: 'los', track: slimTrack(state.picked) });
         return;
       }
-      if (state.phase !== 'search' || !state.picked || !playerById(state.djId)) return;
+      if (!searchOpen() || !state.picked || !playerById(state.djId)) return;
       if (state.spotify.availability && state.spotify.availability.premium === false) {
         presentError(NOT_PREMIUM);
         render();
         return;
       }
       if (trackWasStarted(state.picked.uri)) {
-        state.phase = 'search';
         state.error = ALREADY_STARTED;
         render();
         return;
       }
       const picked = state.picked;
       await withBusy(async () => {
-        if (state.phase !== 'search') return;
+        if (!searchOpen()) return;
         await ensureReady();
-        if (state.phase !== 'search') return;
+        if (!searchOpen()) return;
         const api = requireApi();
         let playback = normalizeState(await api.play(picked.uri, { positionMs: 0 }));
-        if (state.phase !== 'search') {
+        if (!searchOpen()) {
           try { await api.pause(); } catch (error) { presentError(error); }
           return;
         }
@@ -2253,7 +2386,7 @@
             presentError(error);
           }
         }
-        if (state.phase !== 'search') {
+        if (!searchOpen()) {
           try { await api.pause(); } catch (error) { presentError(error); }
           return;
         }
@@ -2283,6 +2416,9 @@
         state.info = '';
         state.results = [];
         state.phase = 'playing';
+        net.localSearch = false;
+        net.acceptingLos = false;
+        net.searchers = [];
         net.searcherId = '';
         net.buzzDevice = '';
         net.pressedBuzz = false;
@@ -2296,6 +2432,7 @@
     }
 
     function buzz(fromKey) {
+      noteAction('Buzzer');
       if (net.role) {
         netBuzz(fromKey);
         return;
@@ -2321,19 +2458,7 @@
       state.guesserId = null;
       state.notice = '';
       buzzHaptic();
-      const paintGuess = () => {
-        if (state.phase === 'guess') render();
-      };
-      if (fromKey) {
-        paintGuess();
-      } else {
-        // The finger is still down. Swapping the screen now would let the
-        // following click land on whatever button appears underneath.
-        const paintSoon = () => { setTimeout(paintGuess, 30); };
-        window.addEventListener('pointerup', paintSoon, { capture: true, once: true });
-        window.addEventListener('touchend', paintSoon, { capture: true, once: true });
-        setTimeout(paintGuess, 480);
-      }
+      settleBuzzScreen();
       pauseCall.then(() => {}, (error) => {
         presentError(error);
         paintBanners();
@@ -2413,6 +2538,7 @@
         return;
       }
       state.guesserId = player.id;
+      state.phase = 'mark';
       render();
     }
 
@@ -2631,6 +2757,8 @@
       stopPoll();
       clearVisibleRecommendations();
       state.phase = 'dj';
+      net.localSearch = false;
+      net.searchers = [];
       state.djId = null;
       state.picked = null;
       state.results = [];
@@ -2761,19 +2889,19 @@
     }
 
     function namesFoldHtml() {
-      if (!net.role) return '';
       const rows = state.players.length
         ? listedPlayers().map((player) => playerRowHtml(player)).join('')
         : '<p class="hint">Noch niemand eingetragen.</p>';
-      return `<details class="card"><summary>Namen</summary><div class="stack">
-        <p class="hint">Die Liste liegt auf dem Host. Jedes Handy darf Namen ändern. Doppelte Namen werden abgelehnt.</p>
+      const plus = '<svg viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path d="M256 112v288M400 256H112" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/></svg>';
+      const body = net.namesOpen ? `<div class="stack">
         <form class="stack" data-action="add-player">
           <input id="playerName" type="text" maxlength="80" placeholder="Name suchen" autocomplete="off" value="${esc(state.draftName)}" aria-label="Name suchen">
         </form>
         <div id="playerSuggestions" class="suggest"></div>
         ${namingFormHtml()}
         ${rows}
-      </div></details>`;
+      </div>` : '';
+      return `<button type="button" class="icon-btn" data-action="toggle-names" aria-label="Namen" aria-expanded="${net.namesOpen ? 'true' : 'false'}">${plus}</button>${body}`;
     }
 
     function netMarkHtml() {
@@ -2828,36 +2956,18 @@
       </section>`;
     }
 
-    function renderGuessWait() {
-      return `${headerHtml()}<div class="stack">
-        ${bannersHtml()}
-        ${scoreboardHtml()}
-        <section class="stack">
-          <h2>Wer hat geraten?</h2>
-          <p class="lead">Das schnellste Handy wählt den Namen.</p>
-          <button type="button" class="btn ghost" data-action="mistake">Versehentlich gedrückt</button>
-        </section>
-      </div>`;
-    }
-
-    function renderMarks() {
-      const ask = isGuest() && net.confirmJudge;
-      const question = net.confirmJudge === 'no' ? 'Falsch werten?' : 'Richtig werten?';
-      return `${headerHtml()}<div class="stack">
-        ${bannersHtml()}
-        ${scoreboardHtml()}
-        <section class="stage">
-          ${buzzLitNow() ? buzzButtonHtml() : ''}
-          ${ask ? `<p class="lead">${question}</p>
-            <button type="button" class="btn" data-action="${net.confirmJudge === 'no' ? 'judge-no' : 'judge-yes'}">Ja</button>
-            <button type="button" class="btn ghost" data-action="judge-cancel">Zurück</button>`
-            : `<div class="marks">
-                <button type="button" class="mark good" data-action="judge-yes" aria-label="Richtig">✓</button>
-                <button type="button" class="mark bad" data-action="judge-no" aria-label="Falsch">✗</button>
-              </div>`}
-          ${backNameButtonHtml()}
-          <button type="button" class="btn ghost" data-action="mistake">Versehentlich gedrückt</button>
-        </section>
+    function marksInlineHtml() {
+      if (isGuest() && net.confirmJudge) {
+        const no = net.confirmJudge === 'no';
+        return `<p class="lead">${no ? 'Falsch werten?' : 'Richtig werten?'}</p>
+          <button type="button" class="btn" data-action="${no ? 'judge-no' : 'judge-yes'}">Ja</button>
+          <button type="button" class="btn ghost" data-action="judge-cancel">Zurück</button>`;
+      }
+      const yes = '<svg viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path d="M416 128 192 384 96 288" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/></svg>';
+      const no = '<svg viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path d="M368 368 144 144M368 144 144 368" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/></svg>';
+      return `<div class="marks">
+        <button type="button" class="mark good" data-action="judge-yes" aria-label="Richtig">${yes}</button>
+        <button type="button" class="mark bad" data-action="judge-no" aria-label="Falsch">${no}</button>
       </div>`;
     }
 
@@ -2871,11 +2981,10 @@
       return state.error || '';
     }
 
-    function bannersHtml() {
+    function bannersHtml(withInfo) {
       const error = shownError();
       return `
         <div id="errorBanner" class="banner error" ${error ? '' : 'hidden'}>${esc(error)}</div>
-        <div id="infoBanner" class="banner info" ${state.info ? '' : 'hidden'}>${esc(state.info)}</div>
       `;
     }
 
@@ -2885,16 +2994,6 @@
         <p>Spotify ist nicht verbunden. Die Runde bleibt offen.</p>
         <button type="button" class="btn" data-action="reconnect" ${state.busy ? 'disabled' : ''}>Verbinden</button>
       </div>`;
-    }
-
-    function scoreboardHtml() {
-      const dj = currentDjId();
-      return `<div class="scores" aria-label="Punktestand">${listedPlayers().map((player) => `
-        <span class="chip${player.id === dj ? ' is-dj' : ''}">
-          <span class="chip-name">${esc(labelOf(player))}</span>
-          <span class="chip-score">${formatScore(player.score)}</span>
-          ${player.id === dj ? '<span class="chip-role">DJ</span>' : ''}
-        </span>`).join('')}</div>`;
     }
 
     function homeButtonHtml() {
@@ -2908,7 +3007,6 @@
         : state.phase === 'final' ? homeButtonHtml() : '';
       return `<header>
         <div>
-          ${state.phase === 'setup' ? '' : '<p class="eyebrow">Partyspiel</p>'}
           <h1>Song raten</h1>
           ${netMarkHtml()}
         </div>
@@ -2917,6 +3015,16 @@
     }
 
     function modalHtml() {
+      if (net.confirmRemove) {
+        const player = playerById(net.confirmRemove);
+        return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="removeTitle">
+          <div class="card stack">
+            <h2 id="removeTitle">${esc(player ? labelOf(player) : 'Name')} aus dem Spiel nehmen?</h2>
+            <button type="button" class="btn bad" data-action="remove-confirm">Entfernen</button>
+            <button type="button" class="btn secondary" data-action="remove-cancel">Zurück</button>
+          </div>
+        </div>`;
+      }
       if (!state.confirmEnd) return '';
       return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="endTitle">
         <div class="card stack">
@@ -3047,17 +3155,16 @@
     }
 
     function renderDj() {
-      const choices = listedPlayers().map((player) => `<button type="button" class="choice${player.id === state.djId ? ' selected' : ''}" data-action="select-dj" data-id="${player.id}">${esc(labelOf(player))}</button>`).join('');
+      const minus = '<svg viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path d="M400 256H112" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="32"/></svg>';
+      const ranked = listedPlayers().slice().sort((a, b) => b.score - a.score || labelOf(a).localeCompare(labelOf(b), 'de'));
+      const searching = new Set((net.searchers || []).map((row) => Number(row.djId)));
+      const choices = ranked.map((player) => `<div class="choice-row"><button type="button" class="choice${searching.has(player.id) ? ' searching' : ''}" data-action="select-dj" data-id="${player.id}"><span>${esc(labelOf(player))}</span><span class="choice-score">${formatScore(player.score)}</span></button><button type="button" class="icon-btn" data-action="ask-remove" data-id="${player.id}" aria-label="${esc(labelOf(player))} entfernen">${minus}</button></div>`).join('');
       return `${headerHtml()}<div class="stack">
         ${bannersHtml()}
         ${reconnectHtml()}
-        ${scoreboardHtml()}
         <section class="stack">
-          <h2>Wer ist der DJ?</h2>
-          ${backNameButtonHtml()}
-          <p class="hint">Handy weitergeben. Nur die Person, die den Song aussucht, bestätigt hier ihren Namen.${state.djId || net.djSent ? ' Falscher Name? Zurück, dann neu wählen.' : ''}</p>
+          ${pageTitle('Wer ist der DJ?')}
           ${choices}
-          <button type="button" class="btn" data-action="confirm-dj" ${state.djId ? '' : 'disabled'}>Ich bin der DJ</button>
           ${namesFoldHtml()}
         </section>
       </div>`;
@@ -3068,7 +3175,8 @@
       const meta = [track.artist, track.album, duration].filter(Boolean).join(' · ');
       const selected = state.picked && sameTrack(state.picked, track);
       const started = trackWasStarted(track.uri);
-      return `<button type="button" class="track${selected ? ' selected' : ''}${started ? ' started' : ''}" data-action="pick-track" data-uri="${esc(track.uri)}"><span><span class="track-title">${esc(track.title)}</span><span class="track-meta">${esc(meta)}</span></span>${started ? '<span class="played-tag">Schon an</span>' : ''}</button>`;
+      const go = '<svg viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path d="M416 128 192 384 96 288" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/></svg>';
+      return `<div class="track${selected ? ' selected' : ''}${started ? ' started' : ''}" data-action="pick-track" data-uri="${esc(track.uri)}" role="button" tabindex="0"><span><span class="track-title">${esc(track.title)}</span><span class="track-meta">${esc(meta)}</span></span>${started ? '<span class="played-tag">Schon an</span>' : ''}<button type="button" class="icon-btn track-go" data-action="los" data-uri="${esc(track.uri)}" aria-label="Diesen Song starten" ${state.busy ? 'disabled' : ''}>${go}</button></div>`;
     }
 
     function recommendationsHtml() {
@@ -3081,33 +3189,28 @@
 
     function renderSearch() {
       const premiumBlocked = !isGuest() && state.spotify.availability && state.spotify.availability.premium === false;
-      const dj = playerById(state.djId);
       const results = state.results.map(trackButtonHtml).join('');
       const searchLocked = state.busy || state.recsLoading;
       return `${headerHtml()}<div class="stack">
         ${bannersHtml()}
         ${reconnectHtml()}
-        ${scoreboardHtml()}
         <section class="stack">
-          <h2>Song aussuchen</h2>
-          ${backNameButtonHtml()}
-          <p class="hint">DJ: ${esc(dj ? labelOf(dj) : '')}. Nur du solltest diese Liste sehen. Falsche Person? Zurück, dann neu wählen.</p>
-          <form class="stack" data-action="search">
+          ${pageTitle(esc((playerById(state.djId) ? labelOf(playerById(state.djId)) : 'Jemand') + ' sucht aus'))}
+          <form class="search-field" data-action="search">
             <input id="searchQuery" type="text" placeholder="Titel oder Interpret" autocomplete="off" value="${esc(state.draftQuery)}" aria-label="Suche">
-            <button class="btn secondary" type="submit" ${searchLocked ? 'disabled' : ''}>Suchen</button>
+            <button class="icon-btn" type="submit" aria-label="Suchen" ${searchLocked ? 'disabled' : ''}><svg viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path d="M221.09 64a157.09 157.09 0 1 0 157.09 157.09A157.1 157.1 0 0 0 221.09 64z" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="32"/><path d="M338.29 338.29 448 448" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="32"/></svg></button>
           </form>
           <button type="button" class="btn secondary" data-action="recommendations" ${searchLocked ? 'disabled' : ''}>${state.recsLoading ? 'Lädt …' : 'Empfehlungen'}</button>
           ${recommendationsHtml()}
           ${results || (state.recommendations.length ? '' : '<p class="hint">Noch keine Treffer.</p>')}
           ${premiumBlocked ? `<div class="banner error">${esc(NOT_PREMIUM)}</div>` : ''}
-          <button type="button" class="btn" data-action="los" ${state.busy || !state.picked || premiumBlocked ? 'disabled' : ''}>Los</button>
         </section>
       </div>`;
     }
 
     function buzzLitNow() {
       const logic = mpLogic();
-      if (!net.role || !logic) return Boolean(net.pressedBuzz) && state.phase === 'playing';
+      if (!net.role || !logic) return state.phase === 'guess' || state.phase === 'mark' || (Boolean(net.pressedBuzz) && state.phase === 'playing');
       const settled = state.phase === 'guess' || state.phase === 'mark' || Boolean(net.buzzDevice);
       return logic.localBuzzLit({
         pressed: net.pressedBuzz,
@@ -3136,7 +3239,63 @@
     function waveHtml() {
       let bars = '';
       for (let i = 0; i < 28; i += 1) bars += '<span></span>';
-      return `<div class="eq" aria-hidden="true">${bars}</div>`;
+      const paused = state.phase === 'guess' || state.phase === 'mark' ? ' paused' : '';
+      return `<div class="eq${paused}" aria-hidden="true">${bars}</div>`;
+    }
+
+    function canPickOnBuzz() {
+      if (state.phase !== 'guess' && state.phase !== 'mark') return false;
+      if (!net.role) return true;
+      return String(net.buzzDevice) === String(net.selfId);
+    }
+
+    function guessPickHtml() {
+      const marks = state.phase === 'mark' ? marksInlineHtml() : '';
+      return `<div class="stack guess-pick">${guessListHtml()}${marks}<button type="button" class="btn ghost" data-action="mistake">Versehentlich gedrückt</button></div>`;
+    }
+
+    function settleBuzzScreen() {
+      if (state.phase !== 'guess' && state.phase !== 'mark') return;
+      const eq = document.querySelector('#app .eq');
+      if (!eq) {
+        render();
+        return;
+      }
+      eq.classList.add('paused');
+      applyBuzzFace();
+      const skip = document.querySelector('#app [data-action="skip"]');
+      if (skip) skip.remove();
+      if (clockTimer) {
+        clearInterval(clockTimer);
+        clockTimer = null;
+      }
+      const pick = document.querySelector('#app .guess-pick');
+      if (pick && state.phase !== 'mark') {
+        pick.querySelectorAll('.marks, .lead, [data-action="judge-yes"], [data-action="judge-no"], [data-action="judge-cancel"]').forEach((node) => node.remove());
+      }
+      const roundHead = document.querySelector('#app .round-head');
+      if (roundHead) {
+        const back = roundHead.querySelector('[data-action="back-name"]');
+        if (backNameActs()) {
+          if (!back) roundHead.insertAdjacentHTML('afterbegin', backNameButtonHtml());
+        } else if (back) back.remove();
+      }
+      if (pick) {
+        pick.querySelectorAll('.choice').forEach((button) => {
+          button.classList.toggle('selected', String(button.getAttribute('data-id')) === String(state.guesserId || ''));
+        });
+      }
+      if (canPickOnBuzz() && !pick) {
+        const card = document.querySelector('#app .score-card');
+        const html = guessPickHtml();
+        if (card) card.outerHTML = html;
+        else eq.insertAdjacentHTML('afterend', html);
+        return;
+      }
+      if (state.phase === 'mark' && canPickOnBuzz() && pick && !pick.querySelector('.marks') && !pick.querySelector('[data-action="judge-cancel"]')) {
+        const mistake = pick.querySelector('[data-action="mistake"]');
+        if (mistake) mistake.insertAdjacentHTML('beforebegin', marksInlineHtml());
+      }
     }
 
     function playingScoresHtml() {
@@ -3151,9 +3310,9 @@
       return `${headerHtml()}<div class="stack">
         ${bannersHtml()}
         ${reconnectHtml()}
-        ${state.notice ? `<div class="banner info">${esc(state.notice)}</div>` : ''}
         <section class="stage">
           <div class="round-head">
+            ${backNameButtonHtml()}
             <p class="round-label">Runde ${roundNo}</p>
             <div class="timer-ring" id="roundRing" style="--p:0">
               <svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="18"></circle><circle class="prog" cx="22" cy="22" r="18"></circle></svg>
@@ -3161,10 +3320,9 @@
             </div>
           </div>
           ${waveHtml()}
-          <p id="playState" class="hint" aria-live="polite">${state.transportPaused ? 'Die Wiedergabe ist pausiert. Titel und Interpret bleiben verdeckt.' : 'Der Song läuft. Titel und Interpret bleiben verdeckt.'} DJ ${esc(dj ? labelOf(dj) : '')}</p>
           ${buzzButtonHtml()}
-          ${playingScoresHtml()}
-          ${net.role ? '<p class="host-note">Musik läuft auf dem Host-Handy</p>' : ''}
+          ${(state.phase === 'guess' || state.phase === 'mark') && canPickOnBuzz() ? guessPickHtml() : playingScoresHtml()}
+          ${namesFoldHtml()}
           <button type="button" id="resumeBtn" class="btn secondary" data-action="resume" ${state.phase === 'playing' && state.transportPaused && !state.holdingSfx ? '' : 'hidden'}>Fortsetzen</button>
           ${state.round && state.round.unconfirmed && !isGuest() ? `<div id="unconfirmed" class="stack">
             <p class="banner warn">Spotify spielt den Song noch nicht. Bitte die Box und die Verbindung prüfen. Der Titel bleibt verdeckt.</p>
@@ -3180,36 +3338,14 @@
     function guessListHtml() {
       const dj = currentDjId();
       return listedPlayers().filter((player) => player.id !== dj).map((player) => `
-        <button type="button" class="choice${player.id === state.guesserId ? ' selected' : ''}" data-action="select-guesser" data-id="${player.id}">${esc(labelOf(player))}</button>
+        <button type="button" class="choice${player.id === state.guesserId ? ' selected' : ''}" data-action="select-guesser" data-id="${player.id}"><span>${esc(labelOf(player))}</span><span class="choice-score">${formatScore(player.score)}</span></button>
       `).join('');
-    }
-
-    function renderGuess() {
-      const selected = playerById(state.guesserId);
-      return `${headerHtml()}<div class="stack">
-        ${bannersHtml()}
-        ${reconnectHtml()}
-        ${scoreboardHtml()}
-        <section class="stack">
-          ${net.role && buzzLitNow() ? buzzButtonHtml() : ''}
-          <h2>Wer hat geraten?</h2>
-          ${backNameButtonHtml()}
-          <p class="hint">Der DJ zählt nicht. Erst die Person wählen, dann Ja oder Nein.${state.guesserId ? ' Falscher Name? Zurück, dann neu wählen.' : ''}</p>
-          ${guessListHtml()}
-          ${net.role ? '<p class="hint">Ein Tipp auf den Namen gilt. Danach sehen alle nur Haken und Kreuz.</p>' : `<div class="row">
-            <button type="button" class="btn good" data-action="judge-yes" ${selected ? '' : 'disabled'}>Ja, richtig</button>
-            <button type="button" class="btn bad" data-action="judge-no" ${selected ? '' : 'disabled'}>Nein, falsch</button>
-          </div>`}
-          <button type="button" class="btn ghost" data-action="mistake">Versehentlich gedrückt</button>
-        </section>
-      </div>`;
     }
 
     function renderEndedAsk() {
       return `${headerHtml()}<div class="stack">
         ${bannersHtml()}
         ${reconnectHtml()}
-        ${scoreboardHtml()}
         <section class="stack">
           <h2>Der Song ist zu Ende.</h2>
           <p class="lead">Wurde der Song erraten?</p>
@@ -3224,10 +3360,8 @@
       return `${headerHtml()}<div class="stack">
         ${bannersHtml()}
         ${reconnectHtml()}
-        ${scoreboardHtml()}
         <section class="stack">
-          <h2>Wer hat ihn erraten?</h2>
-          ${backNameButtonHtml()}
+          ${pageTitle('Wer hat ihn erraten?')}
           <p class="hint">Der DJ bekommt den Punkt nicht. Falscher Name? Zurück, dann neu wählen.</p>
           ${guessListHtml()}
           <button type="button" class="btn" data-action="ended-confirm" ${selected ? '' : 'disabled'}>Punkt geben (+2)</button>
@@ -3246,7 +3380,6 @@
       return `${headerHtml()}<div class="stack">
         ${bannersHtml()}
         ${reconnectHtml()}
-        ${scoreboardHtml()}
         <section class="card stack">
           <p class="eyebrow">Auflösung</p>
           <h2 class="reveal-title">${esc(round ? round.secretTitle : '')}</h2>
@@ -3370,11 +3503,53 @@
       </details>`;
     }
 
+    const SCRAP_URL = 'https://github.com/Krust3nKaese3/GuessTheSongScrapp';
+    const QR_ICON = '<svg viewBox="0 0 512 512" aria-hidden="true" focusable="false"><rect x="336" y="336" width="80" height="80" rx="8" ry="8" fill="currentColor"/><rect x="272" y="272" width="64" height="64" rx="8" ry="8" fill="currentColor"/><rect x="416" y="416" width="64" height="64" rx="8" ry="8" fill="currentColor"/><rect x="432" y="272" width="48" height="48" rx="8" ry="8" fill="currentColor"/><rect x="272" y="432" width="48" height="48" rx="8" ry="8" fill="currentColor"/><rect x="336" y="96" width="80" height="80" rx="8" ry="8" fill="currentColor"/><rect x="288" y="48" width="176" height="176" rx="16" ry="16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><rect x="96" y="96" width="80" height="80" rx="8" ry="8" fill="currentColor"/><rect x="48" y="48" width="176" height="176" rx="16" ry="16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><rect x="96" y="336" width="80" height="80" rx="8" ry="8" fill="currentColor"/><rect x="48" y="288" width="176" height="176" rx="16" ry="16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/></svg>';
+
+    function qrButton(action, label, extra) {
+      return `<div class="qr-panel${extra ? ' is-open' : ''}">
+        <button type="button" class="btn secondary qr-btn" data-action="${action}"><span>${label}</span>${QR_ICON}</button>
+        ${extra || ''}
+      </div>`;
+    }
+
+    function wifiPayload(ssid, password) {
+      const escWifi = (value) => String(value || '').replace(/([\\;,:"])/g, '\\$1');
+      return 'WIFI:T:WPA;S:' + escWifi(ssid) + ';P:' + escWifi(password) + ';;';
+    }
+
+    function qrLinkActions() {
+      if (!net.qrShare) return '';
+      return `<div class="row">
+        <button type="button" class="btn ghost" data-action="qr-copy">${net.qrCopied ? 'Kopiert' : 'Link kopieren'}</button>
+        <button type="button" class="btn ghost" data-action="qr-share">Teilen</button>
+      </div>`;
+    }
+
     function renderShellQr() {
+      const hostExtra = net.qrPanel !== 'host' ? '' : `
+        <div class="row">
+          <button type="button" class="btn${net.hostLink === 'wlan' ? '' : ' ghost'}" data-action="qr-wlan">WLAN</button>
+          <button type="button" class="btn${net.hostLink === 'hotspot' ? '' : ' ghost'}" data-action="qr-hotspot">Hotspot</button>
+        </div>
+        ${net.hostLink === 'hotspot' ? `<form class="stack" data-action="qr-hotspot-show">
+          <input id="hotSsid" type="text" maxlength="64" placeholder="Hotspot-Name" autocomplete="off" value="${esc(net.hotSsid)}" aria-label="Hotspot-Name">
+          <input id="hotPass" type="text" maxlength="64" placeholder="Hotspot-Passwort" autocomplete="off" value="${esc(net.hotPass)}" aria-label="Hotspot-Passwort">
+          <button class="btn secondary" type="submit">QR-Code zeigen</button>
+        </form>` : ''}
+        ${net.qrNote ? `<p class="hint">${esc(net.qrNote)}</p>` : ''}
+        ${net.qrImage ? `<img class="qr-image" alt="QR-Code" src="${esc(net.qrImage)}">` : ''}
+        ${qrLinkActions()}
+        <button type="button" class="btn bad" data-action="qr-stop-host">Hosting beenden</button>`;
+      const downloadExtra = net.qrPanel !== 'download' ? '' : `
+        ${net.qrImage ? `<img class="qr-image" alt="QR-Code zum Herunterladen" src="${esc(net.qrImage)}">` : ''}
+        ${net.qrNote ? `<p class="hint">${esc(net.qrNote)}</p>` : ''}
+        ${qrLinkActions()}`;
       return `${headerHtml()}<div class="stack">
-        ${bannersHtml()}
-        <h2>QR-Code</h2>
-        ${multiplayerCardHtml()}
+        ${bannersHtml(false)}
+        ${qrButton('qr-scan', 'Scan Code')}
+        ${qrButton('qr-host', 'Host Multiplayer', hostExtra)}
+        ${qrButton('qr-download', 'Download Scrap', downloadExtra)}
       </div>`;
     }
 
@@ -3398,8 +3573,7 @@
       const prev = net.shell;
       if (next === prev) return;
       postShell(next);
-      if (next === 'qr') openMultiplayer();
-      else if (prev === 'qr') closeMultiplayer();
+      if (next === 'qr' && isHost()) paintHostQr();
       else render();
     }
 
@@ -3435,24 +3609,34 @@
         return;
       }
       renderHold = false;
+      if (state.phase !== noteAction.phase) {
+        noteAction.phase = state.phase;
+        noteAction('Phase ' + state.phase);
+      }
       refreshLabels();
       const views = {
         setup: renderSetup,
         dj: renderDj,
         search: renderSearch,
         playing: renderPlaying,
-        guess: renderGuess,
+        guess: renderPlaying,
+        mark: renderPlaying,
         endedAsk: renderEndedAsk,
         endedWho: renderEndedWho,
         reveal: renderReveal,
         final: renderFinal
       };
-      let view = overlayView() || views[state.phase] || renderSetup;
-      if (browserGuestShell() && !overlayView() && (net.resumeError || state.phase === 'setup')) view = renderGuestBoot;
-      if (!overlayView() && net.role && state.phase === 'guess' && net.buzzDevice !== net.selfId) {
-        view = net.pressedBuzz ? renderPlaying : renderGuessWait;
+      const namesBtn = document.querySelector('#app [data-action="toggle-names"]');
+      const namesMatch = Boolean(namesBtn) && (namesBtn.getAttribute('aria-expanded') === 'true') === Boolean(net.namesOpen);
+      if ((state.phase === 'guess' || state.phase === 'mark') && namesMatch && !overlayView() && net.shell !== 'qr' && net.shell !== 'options' && document.querySelector('#app .eq')) {
+        settleBuzzScreen();
+        persistGame();
+        syncScreenWake(false);
+        return;
       }
-      if (!overlayView() && net.role && state.phase === 'mark') view = renderMarks;
+      let view = overlayView() || views[state.phase] || renderSetup;
+      if (!overlayView() && net.localSearch && state.phase === 'dj') view = renderSearch;
+      if (browserGuestShell() && !overlayView() && (net.resumeError || state.phase === 'setup')) view = renderGuestBoot;
       if (net.shell === 'qr') view = renderShellQr;
       if (net.shell === 'options') view = renderShellOptions;
       app.innerHTML = view() + modalHtml();
@@ -3482,14 +3666,15 @@
     function paintClock() {
       const el = document.getElementById('roundClock');
       const ring = document.getElementById('roundRing');
-      if (!el || state.phase !== 'playing' || !state.round) {
+      const guessing = state.phase === 'guess' || state.phase === 'mark';
+      if (!el || (state.phase !== 'playing' && !guessing) || !state.round) {
         if (clockTimer) {
           clearInterval(clockTimer);
           clockTimer = null;
         }
         return;
       }
-      const ms = roundElapsedMs();
+      const ms = guessing && state.round.pendingSec != null ? state.round.pendingSec * 1000 : roundElapsedMs();
       el.textContent = formatClock(ms);
       const dur = Number(state.round.durationMs) || 0;
       const p = dur > 0 ? Math.max(0, Math.min(1, ms / dur)) : 0;
@@ -3500,9 +3685,12 @@
       if (state.phase === 'playing' && state.round) {
         paintClock();
         if (!clockTimer) clockTimer = setInterval(paintClock, 250);
-      } else if (clockTimer) {
-        clearInterval(clockTimer);
-        clockTimer = null;
+      } else {
+        if (clockTimer) {
+          clearInterval(clockTimer);
+          clockTimer = null;
+        }
+        if ((state.phase === 'guess' || state.phase === 'mark') && state.round) paintClock();
       }
     }
 
@@ -3883,7 +4071,7 @@
       state.session = restoreSession(saved.session);
       state.guesserId = players.some((player) => player.id === saved.guesserId) ? saved.guesserId : null;
       state.error = asText(saved.error);
-      state.info = asText(saved.info);
+      state.info = asText(saved.info) === 'Wer das Handy hält, ist der DJ und sucht den Song aus.' ? '' : asText(saved.info);
       state.notice = asText(saved.notice);
       state.confirmEnd = Boolean(saved.confirmEnd);
       state.transportPaused = Boolean(saved.transportPaused);
@@ -4112,6 +4300,7 @@
       const button = event.target.closest('[data-action]');
       if (!button || button.disabled) return;
       const action = button.dataset.action;
+      noteAction([action, button.dataset.id, button.dataset.uri, button.dataset.room].filter(Boolean).join(' '));
       if (action === 'end-confirm' || action === 'home') {
         wakeDismissed = true;
         releaseAwake();
@@ -4139,8 +4328,21 @@
       if (action === 'join-qr') { await joinByQr(); return; }
       if (action === 'show-qr') { await showRoomQr(); return; }
       if (action === 'leave-room') { await leaveRoom(); return; }
-      if (action === 'end-room') { await endRoom(); return; }
+      if (action === 'end-room' || action === 'qr-stop-host') {
+        net.qrPanel = '';
+        net.qrImage = '';
+        net.qrShare = '';
+        await endRoom();
+        return;
+      }
       if (action === 'claim-search') { claimSearch(); return; }
+      if (action === 'qr-scan') { await joinByQr(); return; }
+      if (action === 'qr-host') { net.hostLink = 'wlan'; await paintHostQr(); return; }
+      if (action === 'qr-download') { await paintDownloadQr(); return; }
+      if (action === 'qr-wlan') { net.hostLink = 'wlan'; await paintHostQr(); return; }
+      if (action === 'qr-hotspot') { net.hostLink = 'hotspot'; await paintHostQr(); return; }
+      if (action === 'qr-copy') { await copyQrLink(); return; }
+      if (action === 'qr-share') { shareQrLink(); return; }
       if (action === 'rename-player') {
         net.renamingId = Number(button.dataset.id) || 0;
         render();
@@ -4193,11 +4395,23 @@
         state.info = 'Bei Spotify abgemeldet. Die Client-ID in den OpenScr-Einstellungen bleibt erhalten.';
       });
       if (action === 'select-dj') selectDj(Number(button.dataset.id));
+      if (action === 'ask-remove') { net.confirmRemove = Number(button.dataset.id) || 0; render(); return; }
+      if (action === 'remove-cancel') { net.confirmRemove = 0; render(); return; }
+      if (action === 'remove-confirm') {
+        const id = net.confirmRemove;
+        net.confirmRemove = 0;
+        await removePlayer(id);
+        return;
+      }
+      if (action === 'toggle-names') { net.namesOpen = !net.namesOpen; render(); return; }
       if (action === 'back-name') backName();
       if (action === 'confirm-dj') confirmDj();
       if (action === 'recommendations') loadRecommendations();
       if (action === 'pick-track') pickTrack(button.dataset.uri);
-      if (action === 'los') los();
+      if (action === 'los') {
+        if (button.dataset.uri) pickTrack(button.dataset.uri);
+        los();
+      }
       if (action === 'buzz') {
         if (event.detail === 0) buzz(true);
         return;
@@ -4220,7 +4434,56 @@
       if (action === 'home') await returnToLobby();
     }
 
+    function bugReport(note) {
+      const dj = playerById(currentDjId());
+      const people = listedPlayers().map((player) => labelOf(player) + ' ' + formatScore(player.score)).join(', ');
+      return [
+        'Song raten',
+        'Phase: ' + state.phase,
+        'Spieler: ' + people,
+        'DJ: ' + (dj ? labelOf(dj) : ''),
+        'Fehler: ' + (state.error || ''),
+        'Notiz: ' + (note || ''),
+        '',
+        '## Ablauf',
+        actionLog.map((entry) => '- ' + new Date(entry.t).toISOString() + ' ' + entry.m).join('\n')
+      ].join('\n');
+    }
+
+    function bindBugReport() {
+      const button = document.getElementById('bug-btn');
+      const panel = document.getElementById('bug-panel');
+      const field = document.getElementById('bug-text');
+      const status = document.getElementById('bug-status');
+      if (!button || !panel || !field || !status) return;
+      button.addEventListener('click', () => {
+        panel.hidden = false;
+        status.textContent = '';
+      });
+      document.getElementById('bug-close').addEventListener('click', () => { panel.hidden = true; });
+      document.getElementById('bug-copy').addEventListener('click', async () => {
+        const text = bugReport(field.value);
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(text);
+          else {
+            field.value = text;
+            field.focus();
+            field.select();
+            status.textContent = 'Markiert. Bitte manuell kopieren.';
+            return;
+          }
+          status.textContent = 'Kopiert. Du kannst den Text einfügen.';
+        } catch (error) {
+          field.value = text;
+          field.focus();
+          field.select();
+          status.textContent = 'Markiert. Bitte manuell kopieren.';
+        }
+      });
+    }
+
     function bind() {
+      bindBugReport();
       window.addEventListener('openscr-shell', (event) => applyShell(event.detail));
       postShell('index');
       let buzzStamp = 0;
@@ -4267,6 +4530,13 @@
         if (form.dataset.action === 'add-player') submitPlayerQuery();
         if (form.dataset.action === 'create-player') createAndAdd();
         if (form.dataset.action === 'search') runSearch();
+        if (form.dataset.action === 'qr-hotspot-show') {
+          const ssid = document.getElementById('hotSsid');
+          const pass = document.getElementById('hotPass');
+          net.hotSsid = ssid ? ssid.value : '';
+          net.hotPass = pass ? pass.value : '';
+          paintHostQr();
+        }
         if (form.dataset.action === 'rename-player') {
           const first = document.getElementById('renameFirst');
           const last = document.getElementById('renameLast');
@@ -4288,6 +4558,8 @@
         }
         if (event.target.id === 'playerFirst') state.draftFirst = event.target.value;
         if (event.target.id === 'playerLast') state.draftLast = event.target.value;
+        if (event.target.id === 'hotSsid') net.hotSsid = event.target.value;
+        if (event.target.id === 'hotPass') net.hotPass = event.target.value;
         if (event.target.id === 'searchQuery') {
           state.draftQuery = event.target.value;
           persistGame();
@@ -4412,6 +4684,7 @@
         error: '',
         buzzDevice: net.buzzDevice,
         searcherId: net.searcherId,
+        searchers: net.searchers || [],
         hold: state.holdingSfx,
         scoredPid: extra && extra.scoredPid,
         revokePid: extra && extra.revokePid,
@@ -4648,19 +4921,21 @@
         state.nextId = players.reduce((max, player) => Math.max(max, player.id), 0) + 1;
       }
       if (Array.isArray(msg.directory) && msg.directory.length) net.directory = msg.directory;
-      const keepSearch = msg.phase === 'search' && String(msg.searcherId) === String(net.selfId);
-      state.phase = msg.phase || 'setup';
+      const keepSearch = net.localSearch && (msg.phase === 'dj' || msg.phase === 'search');
+      net.localSearch = keepSearch;
+      state.phase = keepSearch ? 'dj' : (msg.phase || 'setup');
       if (state.phase !== 'dj') net.djSent = false;
       state.djId = msg.djId == null ? null : Number(msg.djId);
       state.guesserId = msg.guesserId == null ? null : Number(msg.guesserId);
       state.songsStarted = Number(msg.songsStarted) || 0;
       state.notice = msg.notice || '';
-      state.info = msg.info || '';
+      state.info = msg.info === 'Wer das Handy hält, ist der DJ und sucht den Song aus.' ? '' : (msg.info || '');
       if (msg.error) state.error = msg.error;
       else if (!keepSearch) state.error = '';
       state.holdingSfx = Boolean(msg.hold);
       net.buzzDevice = msg.buzzDevice || '';
       net.searcherId = msg.searcherId || '';
+      net.searchers = Array.isArray(msg.searchers) ? msg.searchers : [];
       if (!msg.round) state.round = null;
       else {
         state.round = {
@@ -4784,11 +5059,18 @@
         else if (data.t === 'remove') await removePlayer(Number(data.id));
         else if (data.t === 'start') await startGame();
         else if (data.t === 'dj') {
-          if (state.phase === 'dj') {
-            state.djId = Number(data.id);
-            confirmDj();
+          if (state.phase === 'dj' || state.phase === 'search') {
+            noteSearcher(from, Number(data.id));
+            publish();
+            render();
           }
-        } else if (data.t === 'back') backName();
+        } else if (data.t === 'back') {
+          if ((state.phase === 'dj' || state.phase === 'search') && (net.searchers || []).some((row) => String(row.device) === String(from))) {
+            dropSearcher(from);
+            publish();
+            render();
+          } else backName();
+        }
         else if (data.t === 'back-ended') backName();
         else if (data.t === 'searching') {
           if (state.phase === 'search') {
@@ -4822,7 +5104,7 @@
     }
 
     async function answerSearch(from, data) {
-      if (state.phase !== 'search') return;
+      if (state.phase !== 'dj' && state.phase !== 'search') return;
       const query = String(data.q || '').trim();
       if (!query) {
         sendTo(from, { t: 'no', id: data.id, text: 'Suchbegriff fehlt.' });
@@ -4838,7 +5120,7 @@
     }
 
     async function answerRecs(from, data) {
-      if (state.phase !== 'search') return;
+      if (state.phase !== 'dj' && state.phase !== 'search') return;
       try {
         const picks = await buildRecommendations();
         picks.forEach((track) => rememberShown(track.uri));
@@ -4849,12 +5131,15 @@
     }
 
     async function answerLos(from, data) {
-      if (!data.track || state.phase !== 'search') {
+      if (!data.track || net.acceptingLos || (state.phase !== 'dj' && state.phase !== 'search')) {
         sendTo(from, { t: 'no', text: 'Der Song kann gerade nicht starten.' });
         return;
       }
+      const row = (net.searchers || []).find((item) => String(item.device) === String(from));
+      if (row) state.djId = row.djId;
       state.picked = data.track;
-      await los();
+      net.acceptingLos = true;
+      try { await los(); } finally { net.acceptingLos = false; }
       if (state.phase === 'search' && state.error) {
         sendTo(from, { t: 'no', text: state.error });
         if (String(net.searcherId) !== String(net.selfId)) state.error = '';
@@ -4946,6 +5231,9 @@
       net.buzzDevice = '';
       net.pressedBuzz = false;
       net.searcherId = '';
+      net.searchers = [];
+      net.localSearch = false;
+      net.acceptingLos = false;
       net.localLock = false;
       net.hostPaused = false;
       net.confirmJudge = '';
@@ -5077,7 +5365,7 @@
         return;
       }
       await withBusy(async () => {
-        const room = await mp.host({ maxPlayers: 16, name: 'Song raten', discoverable: true, joinApproval: false });
+        const room = await mp.host({ maxPlayers: 16, name: 'Song raten', discoverable: true, joinApproval: false, quiet: true });
         adoptRoom({
           role: 'host',
           playerId: room.playerId,
@@ -5123,6 +5411,83 @@
         net.panel = false;
         sendHost({ t: 'hello' });
       });
+    }
+
+    async function qrImage(text) {
+      const mp = mpBridge();
+      if (!mp || typeof mp.qrDataUrl !== 'function' || !text) return '';
+      return mp.qrDataUrl(text);
+    }
+
+    async function hostCodes() {
+      const mp = mpBridge();
+      if (!mp || typeof mp.codes !== 'function') return null;
+      try { return await mp.codes(); } catch (error) { return null; }
+    }
+
+    async function paintHostQr() {
+      net.qrPanel = 'host';
+      net.qrCopied = false;
+      if (!isHost()) {
+        try { await offerRoom(); } catch (error) {
+          net.qrNote = errText(error);
+          net.qrImage = '';
+          render();
+          return;
+        }
+      }
+      let codes = await hostCodes();
+      if (codes && !codes.gameUrl) {
+        await new Promise((resolve) => setTimeout(resolve, 700));
+        codes = await hostCodes();
+      }
+      const gameUrl = codes && (codes.gameUrl || codes.qrPayload) || '';
+      net.qrShare = gameUrl;
+      if (net.hostLink === 'hotspot') {
+        if (!net.hotSsid) {
+          net.qrImage = '';
+          net.qrNote = gameUrl ? 'WLAN ist die Vorgabe. Für den Hotspot Name und Passwort eintragen.' : 'Der Spiel-Link wird vorbereitet.';
+          render();
+          return;
+        }
+        net.qrImage = await qrImage(wifiPayload(net.hotSsid, net.hotPass));
+        net.qrNote = 'Hotspot-Code scannen, danach denselben Spiel-Link öffnen.';
+      } else {
+        net.qrImage = gameUrl ? await qrImage(gameUrl) : '';
+        net.qrNote = gameUrl ? 'Gleiches WLAN. Der Code öffnet das Spiel im Browser.' : 'Der Spiel-Link wird vorbereitet.';
+      }
+      render();
+    }
+
+    async function paintDownloadQr() {
+      net.qrPanel = 'download';
+      net.qrCopied = false;
+      net.qrShare = SCRAP_URL;
+      net.qrNote = 'In OpenScr scannen, um Song raten zu laden.';
+      net.qrImage = await qrImage(SCRAP_URL);
+      render();
+    }
+
+    async function copyQrLink() {
+      if (!net.qrShare) return;
+      const api = bridge();
+      try {
+        if (api && api.clipboard && api.clipboard.setString) await api.clipboard.setString(net.qrShare);
+        else if (navigator.clipboard) await navigator.clipboard.writeText(net.qrShare);
+      } catch (error) {
+        presentError(error);
+      }
+      net.qrCopied = true;
+      render();
+    }
+
+    function shareQrLink() {
+      if (!net.qrShare) return;
+      if (navigator.share) {
+        navigator.share({ title: 'Song raten', text: net.qrShare, url: net.qrShare }).catch(() => {});
+        return;
+      }
+      copyQrLink();
     }
 
     async function showRoomQr() {
