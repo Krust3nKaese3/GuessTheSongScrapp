@@ -1983,7 +1983,8 @@
       lobbyDirty = true;
       const saved = persistLobby();
       if (isHost()) publish();
-      if (document.activeElement && document.activeElement.id === 'playerName') {
+      if (document.getElementById('openscr-roster')) refreshRoster();
+      else if (document.activeElement && document.activeElement.id === 'playerName') {
         paintAddedPlayers();
         paintPlayerSuggest();
       } else render();
@@ -2237,7 +2238,8 @@
       lobbyDirty = true;
       const saved = persistLobby();
       if (isHost()) publish();
-      if (document.activeElement && document.activeElement.id === 'playerName') {
+      if (document.getElementById('openscr-roster')) refreshRoster();
+      else if (document.activeElement && document.activeElement.id === 'playerName') {
         paintAddedPlayers();
         paintPlayerSuggest();
       } else render();
@@ -3331,7 +3333,59 @@
       </div>`;
     }
 
+    function lobbyModel() {
+      return {
+        query: state.draftName || '',
+        directory: directorySource().map((player) => ({
+          id: String(player.id),
+          label: riotLabel(player) || player.name || player.first || ''
+        })),
+        seated: state.players.map((player) => ({
+          id: String(player.id),
+          pid: String(player.pid || ''),
+          label: labelOf(player)
+        })),
+        startLabel: 'Spiel starten',
+        startDisabled: !!(state.busy || state.players.length < 2),
+        statsLabel: 'Statistik',
+        rulesHtml: rulesCardHtml()
+      };
+    }
+
+    function refreshRoster() {
+      const el = document.getElementById('openscr-roster');
+      if (!el || !window.OpenScrRoster) return false;
+      window.OpenScrRoster.setModel(lobbyModel());
+      return true;
+    }
+
+    function mountRoster() {
+      const el = document.getElementById('openscr-roster');
+      if (!el || !window.OpenScrRoster) return;
+      window.OpenScrRoster.attach(el, {
+        onQuery: (value) => { state.draftName = value; },
+        onPick: (id) => { addSavedPlayer(id); },
+        onRemove: (id) => { removePlayer(Number(id)); },
+        onCreate: (draft) => {
+          state.draftFirst = draft.name;
+          state.draftLast = draft.tag;
+          createAndAdd({ name: draft.name, tag: draft.tag, first: draft.name, last: draft.tag });
+        },
+        onStart: () => { startGame(); },
+        onStats: () => { state.overlay = 'players'; state.error = ''; render(); }
+      });
+      window.OpenScrRoster.setModel(lobbyModel());
+    }
+
     function renderSetup() {
+      if (window.OpenScrRoster) {
+        return `${headerHtml()}
+          <div class="stack">
+            ${bannersHtml()}
+            ${reconnectHtml()}
+            <div id="openscr-roster"></div>
+          </div>`;
+      }
       const players = `<div id="addedPlayers" class="roster">${listedPlayers().map((player) => playerRowHtml(player)).join('')}</div>`;
       return `${headerHtml()}
         <div class="stack">
@@ -3867,6 +3921,7 @@
       if (net.shell === 'qr') view = renderShellQr;
       if (net.shell === 'options') view = renderShellOptions;
       app.innerHTML = view() + modalHtml();
+      mountRoster();
       if (showBuzzer) requestAnimationFrame(focusBuzzer);
       paintPlayerSuggest();
       persistGame();
