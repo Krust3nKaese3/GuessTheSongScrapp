@@ -536,6 +536,7 @@
       locked: [],
       seen: [],
       directory: [],
+      stats: [],
       clock: null,
       buzz: null,
       buzzSeq: 0,
@@ -1947,11 +1948,24 @@
 
     function addSavedPlayer(pid) {
       if (isGuest()) {
+        const record = directorySource().find((player) => String(player.id) === String(pid));
+        if (record && !state.players.some((player) => String(player.pid) === String(record.id))) {
+          state.players.push({
+            id: state.nextId++,
+            pid: record.id,
+            first: record.first,
+            last: record.last,
+            name: record.name || record.first,
+            tag: record.tag || '',
+            score: 0
+          });
+        }
         sendHost({ t: 'add', pid: pid });
         state.draftName = '';
         state.creating = false;
         state.error = '';
-        render();
+        if (document.getElementById('openscr-roster')) refreshRoster();
+        else render();
         return Promise.resolve();
       }
       const record = directorySource().find((player) => player.id === pid);
@@ -3084,10 +3098,13 @@
           <button type="button" class="btn ghost" data-action="cancel-rename">Zurück</button>
         </form>`;
       }
-      const rename = net.role
+      const rename = net.role && !(isGuest() || browserGuestShell())
         ? `<button type="button" class="icon-btn" data-action="rename-player" data-id="${player.id}" aria-label="${esc(labelOf(player))} umbenennen">✎</button>`
         : '';
-      return `<div class="player"><span class="player-name">${esc(labelOf(player))}</span><span class="player-actions">${rename}<button type="button" class="icon-btn" data-action="remove-player" data-id="${player.id}" aria-label="${esc(labelOf(player))} entfernen">✕</button></span></div>`;
+      const remove = (isGuest() || browserGuestShell())
+        ? ''
+        : `<button type="button" class="icon-btn" data-action="remove-player" data-id="${player.id}" aria-label="${esc(labelOf(player))} entfernen">✕</button>`;
+      return `<div class="player"><span class="player-name">${esc(labelOf(player))}</span><span class="player-actions">${rename}${remove}</span></div>`;
     }
 
     function namesFoldHtml() {
@@ -3202,9 +3219,11 @@
 
     function headerHtml() {
       const inGame = state.phase !== 'setup' && state.phase !== 'final';
-      const corner = inGame
-        ? '<button type="button" class="linkish" data-action="end">Spiel beenden</button>'
-        : state.phase === 'final' ? homeButtonHtml() : '';
+      const corner = (isGuest() || browserGuestShell())
+        ? ''
+        : (inGame
+          ? '<button type="button" class="linkish" data-action="end">Spiel beenden</button>'
+          : state.phase === 'final' ? homeButtonHtml() : '');
       return `<header>
         <div>
           <h1>Song raten</h1>
@@ -3316,6 +3335,13 @@
           </section>
         </div>`;
       }
+      if (window.OpenScrRoster) {
+        return `${headerHtml()}<div class="stack">
+          ${bannersHtml()}
+          <style>#openscr-roster .orl-x,#openscr-roster [data-act="start"]{display:none}</style>
+          <div id="openscr-roster"></div>
+        </div>`;
+      }
       const names = state.players.length
         ? `<div class="roster">${listedPlayers().map((player) => `<div class="player"><span class="player-name">${esc(labelOf(player))}</span></div>`).join('')}</div>`
         : '<p class="hint">Die Namen kommen vom Host.</p>';
@@ -3348,6 +3374,7 @@
         startLabel: 'Spiel starten',
         startDisabled: !!(state.busy || state.players.length < 2),
         statsLabel: 'Statistik',
+        canRemove: !(isGuest() || browserGuestShell()),
         rulesHtml: rulesCardHtml()
       };
     }
@@ -3401,7 +3428,10 @@
       window.OpenScrRoster.attach(el, {
         onQuery: (value) => { state.draftName = value; },
         onPick: (id) => { addSavedPlayer(id); },
-        onRemove: (id) => { removePlayer(Number(id)); },
+        onRemove: (id) => {
+          if (isGuest() || browserGuestShell()) return;
+          removePlayer(Number(id));
+        },
         onCreate: (draft) => {
           state.draftFirst = draft.name;
           state.draftLast = draft.tag;
@@ -3419,6 +3449,7 @@
           <div class="stack">
             ${bannersHtml()}
             ${reconnectHtml()}
+            ${(isGuest() || browserGuestShell()) ? '<style>#openscr-roster .orl-x,#openscr-roster [data-act="start"]{display:none}</style>' : ''}
             <div id="openscr-roster"></div>
           </div>`;
       }
@@ -3433,7 +3464,7 @@
           <div id="playerSuggestions" class="suggest"></div>
           ${namingFormHtml()}
           ${players}
-          <button type="button" class="btn" data-action="start" ${state.busy || state.players.length < 2 ? 'disabled' : ''}>Spiel starten</button>
+          ${(isGuest() || browserGuestShell()) ? '' : `<button type="button" class="btn" data-action="start" ${state.busy || state.players.length < 2 ? 'disabled' : ''}>Spiel starten</button>`}
           <button type="button" class="linkish stats-link" data-action="open-players" aria-label="Gespeicherte Spieler">Statistik</button>
           ${rulesCardHtml()}
         </div>`;
@@ -3443,7 +3474,8 @@
       const minus = '<svg viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path d="M400 256H112" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="32"/></svg>';
       const ranked = listedPlayers().slice().sort((a, b) => b.score - a.score || labelOf(a).localeCompare(labelOf(b), 'de'));
       const searching = new Set((net.searchers || []).map((row) => Number(row.djId)));
-      const choices = ranked.map((player) => `<div class="choice-row"><button type="button" class="choice${searching.has(player.id) ? ' searching' : ''}" data-action="select-dj" data-id="${player.id}"><span>${esc(labelOf(player))}</span><span class="choice-score">${formatScore(player.score)}</span></button><button type="button" class="icon-btn" data-action="ask-remove" data-id="${player.id}" aria-label="${esc(labelOf(player))} entfernen">${minus}</button></div>`).join('');
+      const guestWatch = isGuest() || browserGuestShell();
+      const choices = ranked.map((player) => `<div class="choice-row"><button type="button" class="choice${searching.has(player.id) ? ' searching' : ''}" data-action="select-dj" data-id="${player.id}"><span>${esc(labelOf(player))}</span><span class="choice-score">${formatScore(player.score)}</span></button>${guestWatch ? '' : `<button type="button" class="icon-btn" data-action="ask-remove" data-id="${player.id}" aria-label="${esc(labelOf(player))} entfernen">${minus}</button>`}</div>`).join('');
       return `${headerHtml()}<div class="stack">
         ${bannersHtml()}
         ${reconnectHtml()}
@@ -3726,6 +3758,28 @@
       return value.toFixed(1).replace('.', ',') + ' s';
     }
 
+    function publicStats() {
+      const api = statsApi();
+      const hist = historyDoc || (api && api.emptyHistory ? api.emptyHistory() : null);
+      if (!api || !hist) return [];
+      return registry.map((player) => {
+        const data = api.statsFor(hist, player.id) || {};
+        const brief = (row) => ({ title: row.title || '', artist: row.artist || '', count: row.count || 0, average: row.average, seconds: row.seconds || [] });
+        return {
+          id: player.id,
+          name: player.name || player.first || '',
+          tag: player.tag || '',
+          first: player.first || '',
+          last: player.last || '',
+          points: data.points || 0,
+          games: data.games || 0,
+          wins: data.wins || 0,
+          djSongs: (data.djSongs || []).slice(0, 30).map(brief),
+          guessed: (data.guessed || []).slice(0, 30).map(brief)
+        };
+      });
+    }
+
     function sortedRegistry() {
       const api = playerApi();
       return registry.slice().sort((a, b) => {
@@ -3741,7 +3795,7 @@
     }
 
     function renderPlayerDirectory() {
-      const rows = sortedRegistry();
+      const rows = (isGuest() || browserGuestShell()) ? (net.stats || []).slice() : sortedRegistry();
       const list = rows.length
         ? rows.map((player) => `<button type="button" class="choice" data-action="open-stats" data-pid="${esc(player.id)}"><span><span class="player-name">${esc(personTitle(player))}</span><span class="track-meta">Allzeit-Statistik</span></span></button>`).join('')
         : '<p class="hint">Noch niemand gespeichert. In der Lobby legt ihr eine Person mit Vor- und Nachname an.</p>';
@@ -3750,16 +3804,17 @@
         <button type="button" class="btn ghost" data-action="back-overlay">Zurück</button>
         <section class="card stack">
           <h2>Gespeicherte Spieler</h2>
-          <p class="hint">Die Liste liegt auf diesem Handy. Ein Tipp öffnet die Statistik. Entfernen aus der Runde löscht niemanden hier.</p>
+          <p class="hint">${(isGuest() || browserGuestShell()) ? 'Die Liste und die Statistik kommen vom Host-Handy. Ein Tipp öffnet eine Person.' : 'Die Liste liegt auf diesem Handy. Ein Tipp öffnet die Statistik. Entfernen aus der Runde löscht niemanden hier.'}</p>
           ${list}
         </section>
       </div>`;
     }
 
     function renderPlayerStats() {
-      const record = registry.find((player) => player.id === state.statsPid);
+      const guestRow = (isGuest() || browserGuestShell()) ? (net.stats || []).find((player) => player.id === state.statsPid) : null;
+      const record = guestRow || registry.find((player) => player.id === state.statsPid);
       const api = statsApi();
-      const data = record && api ? api.statsFor(historyDoc || api.emptyHistory(), record.id) : null;
+      const data = guestRow || (record && api ? api.statsFor(historyDoc || api.emptyHistory(), record.id) : null);
       const archived = Boolean(historyDoc && historyDoc.archive && record && historyDoc.archive[record.id]);
       const djSongs = data && data.djSongs.length
         ? data.djSongs.map((row) => `<div class="stat-item"><span class="player-name">${esc(row.title || 'Unbekannter Titel')}</span><span class="track-meta">${esc(row.artist || '')}</span><span class="hint">${esc(row.count + '×')}</span></div>`).join('')
@@ -5098,6 +5153,7 @@
         phase: state.phase,
         players: state.players,
         directory: registry.map((player) => ({ id: player.id, name: player.name || player.first, tag: player.tag || '', first: player.first, last: player.last })),
+        stats: state.phase === 'setup' ? publicStats() : [],
         djId: state.djId,
         guesserId: state.guesserId,
         songsStarted: state.songsStarted,
@@ -5344,6 +5400,7 @@
         state.nextId = players.reduce((max, player) => Math.max(max, player.id), 0) + 1;
       }
       if (Array.isArray(msg.directory) && msg.directory.length) net.directory = msg.directory;
+      if (Array.isArray(msg.stats)) net.stats = msg.stats;
       const keepSearch = net.localSearch && (msg.phase === 'dj' || msg.phase === 'search');
       net.localSearch = keepSearch;
       state.phase = keepSearch ? 'dj' : (msg.phase || 'setup');
