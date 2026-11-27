@@ -3895,10 +3895,7 @@
 
     function renderShellQr() {
       if (window.OpenScrQr) {
-        return `${headerHtml()}<div class="stack">
-          ${bannersHtml(false)}
-          <div id="openscr-qr"></div>
-        </div>`;
+        return `${headerHtml()}<div class="stack"><div id="openscr-qr"></div></div>`;
       }
       const hostExtra = net.qrPanel !== 'host' ? '' : `
         <div class="row">
@@ -5837,26 +5834,26 @@
       render();
     }
 
-    async function offerRoom() {
+    async function startRoom() {
       const mp = mpBridge();
       if (!mp || typeof mp.host !== 'function') {
-        net.detail = 'Mehrspieler fehlt in dieser OpenScr-Version. Es braucht einen neuen Build.';
-        render();
-        return;
+        throw new Error('Mehrspieler fehlt in dieser OpenScr-Version. Es braucht einen neuen Build.');
       }
-      await withBusy(async () => {
-        const room = await mp.host({ maxPlayers: 16, name: 'Song raten', discoverable: true, joinApproval: false, quiet: true });
-        adoptRoom({
-          role: 'host',
-          playerId: room.playerId,
-          roomCode: room.roomCode,
-          qrPayload: room.qrPayload,
-          players: room.players,
-          status: 'ready'
-        });
-        try { if (mp.stopDiscovery) await mp.stopDiscovery(); } catch (error) {}
-        publish();
+      const room = await mp.host({ maxPlayers: 16, name: 'Song raten', discoverable: true, joinApproval: false, quiet: true });
+      adoptRoom({
+        role: 'host',
+        playerId: room.playerId,
+        roomCode: room.roomCode,
+        qrPayload: room.qrPayload,
+        players: room.players,
+        status: 'ready'
       });
+      try { if (mp.stopDiscovery) await mp.stopDiscovery(); } catch (error) {}
+      publish();
+    }
+
+    async function offerRoom() {
+      await withBusy(function () { return startRoom(); });
     }
 
     async function joinFoundRoom(id) {
@@ -5909,7 +5906,7 @@
       net.qrPanel = 'host';
       net.qrCopied = false;
       if (!isHost()) {
-        try { await offerRoom(); } catch (error) {
+        try { await startRoom(); } catch (error) {
           net.qrNote = errText(error);
           net.qrImage = '';
           render();
