@@ -193,6 +193,18 @@
     .roster .player-name { font-size: 15px; font-weight: 650; }
     .roster .icon-btn { width: 32px; height: 32px; flex-basis: 32px; border-radius: 999px; background: transparent; font-size: 14px; color: #d4d4d8; }
     .field-label { font-size: 15px; color: #d4d4d8; margin: 8px 0 0; }
+    .song-history { display: flex; flex-direction: column; gap: 8px; }
+    .song-history[hidden] { display: none !important; }
+    .song-history select {
+      width: 100%;
+      min-height: 48px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #141418;
+      color: #f4f4f5;
+      padding: 0 14px;
+      font-size: 16px;
+    }
     .suggest:empty { display: none; }
     .suggest {
       background: #17171c;
@@ -423,6 +435,7 @@
   <script src="players.js"></script>
   <script src="stats.js"></script>
   <script src="multiplayer.js"></script>
+  <script src="songhistory.js"></script>
   <script>
     const NO_CLIENT_ID = 'Keine Spotify Client ID hinterlegt. Bitte in den OpenScr-Einstellungen eintragen.';
     const NOT_INSTALLED = 'Spotify ist nicht installiert. Bitte die Spotify-App aus dem Play Store installieren und dich dort anmelden.';
@@ -2521,6 +2534,157 @@
       render();
     }
 
+    const historyNoted = {};
+    let historyGroups = [];
+    let historyOpen = '';
+    let historyToken = 0;
+
+    function songHistoryApi() {
+      try {
+        const root = bridge();
+        const logic = globalThis.OpenScrSongHistory;
+        if (!logic || !logic.hasApi(root)) return null;
+        return root.songHistory;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function noteSongPlayed(track) {
+      const logic = globalThis.OpenScrSongHistory;
+      const api = songHistoryApi();
+      if (!logic || !api || isGuest()) return;
+      const decision = logic.shouldRecord(track, historyNoted);
+      if (!decision) return;
+      logic.markRecorded(historyNoted, decision.key);
+      Promise.resolve(api.add(decision.payload)).then(function () {}, function () {});
+    }
+
+    function historySongLabel(entry) {
+      const title = String(entry && entry.title || '').trim();
+      const artist = String(entry && entry.artist || '').trim();
+      return artist ? title + ' · ' + artist : title;
+    }
+
+    function fillHistoryBox(box, view) {
+      box.replaceChildren();
+      if (!view || view.mode === 'hidden' || !view.groups.length) {
+        box.hidden = true;
+        historyOpen = '';
+        return;
+      }
+      box.hidden = false;
+      const open = view.groups.find((row) => row.source === historyOpen);
+      if (historyOpen && !open) historyOpen = '';
+      if (open) {
+        const back = document.createElement('button');
+        back.type = 'button';
+        back.className = 'btn secondary small';
+        back.dataset.action = 'history-back';
+        back.textContent = 'Zurück';
+        box.appendChild(back);
+        open.songs.forEach((entry, index) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'track';
+          button.dataset.action = 'history-pick';
+          button.dataset.index = String(index);
+          const title = document.createElement('span');
+          title.className = 'track-title';
+          title.textContent = historySongLabel(entry);
+          button.appendChild(title);
+          box.appendChild(button);
+        });
+        return;
+      }
+      if (view.mode === 'select') {
+        const select = document.createElement('select');
+        select.id = 'historySource';
+        select.setAttribute('aria-label', 'Andere Quellen');
+        const empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = 'Zuletzt woanders gespielt';
+        select.appendChild(empty);
+        view.groups.forEach((row) => {
+          const option = document.createElement('option');
+          option.value = row.source;
+          option.textContent = row.sourceName;
+          select.appendChild(option);
+        });
+        box.appendChild(select);
+        return;
+      }
+      view.groups.forEach((row) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn ghost small';
+        button.dataset.action = 'history-source';
+        button.dataset.source = row.source;
+        button.textContent = row.sourceName;
+        box.appendChild(button);
+      });
+    }
+
+    function paintSongHistory() {
+      const box = document.getElementById('song-history');
+      const logic = globalThis.OpenScrSongHistory;
+      if (!box || !logic) return;
+      const api = songHistoryApi();
+      if (!logic.showPanel(Boolean(api))) {
+        box.hidden = true;
+        box.replaceChildren();
+        return;
+      }
+      const token = historyToken + 1;
+      historyToken = token;
+      Promise.resolve(api.sources()).then(function (sources) {
+        if (token !== historyToken || !document.getElementById('song-history')) return null;
+        const rows = Array.isArray(sources) ? sources : [];
+        const songsBySource = {};
+        return rows.reduce(function (chain, row) {
+          return chain.then(function () {
+            if (token !== historyToken || !row || row.source == null || row.source === '') return null;
+            return Promise.resolve(api.list({ source: row.source, excludeSelf: true })).then(function (songs) {
+              songsBySource[row.source] = Array.isArray(songs) ? songs : [];
+            });
+          });
+        }, Promise.resolve()).then(function () {
+          return { sources: rows, songsBySource: songsBySource };
+        });
+      }).then(function (loaded) {
+        const node = document.getElementById('song-history');
+        if (!loaded || token !== historyToken || !node) return;
+        historyGroups = logic.groupSources(loaded.sources, loaded.songsBySource);
+        fillHistoryBox(node, logic.presentation(historyGroups));
+      }, function () {
+        const node = document.getElementById('song-history');
+        if (!node || token !== historyToken) return;
+        node.hidden = true;
+        node.replaceChildren();
+      });
+    }
+
+    function openHistorySource(source) {
+      historyOpen = source || '';
+      const box = document.getElementById('song-history');
+      const logic = globalThis.OpenScrSongHistory;
+      if (!box || !logic) return;
+      fillHistoryBox(box, logic.presentation(historyGroups));
+    }
+
+    function pickHistorySong(index) {
+      const group = historyGroups.find((row) => row.source === historyOpen);
+      const entry = group && group.songs[index];
+      const logic = globalThis.OpenScrSongHistory;
+      const query = logic ? logic.searchQuery(entry) : '';
+      if (!query) return;
+      state.draftQuery = query;
+      const input = document.getElementById('searchQuery');
+      if (input) input.value = query;
+      historyOpen = '';
+      runSearch();
+    }
+
     async function runSearch() {
       const query = (state.draftQuery || '').trim();
       if (!query) {
@@ -2623,6 +2787,7 @@
         };
         state.songsStarted += 1;
         rememberStarted(picked);
+        noteSongPlayed(picked);
         const djPlayer = playerById(state.djId);
         const stats = statsApi();
         if (stats && djPlayer && djPlayer.pid) logEvent(stats.roundEvent(djPlayer.pid, picked.uri, picked.title, picked.artist));
@@ -3517,6 +3682,7 @@
             <input id="searchQuery" type="text" placeholder="Titel oder Interpret" autocomplete="off" value="${esc(state.draftQuery)}" aria-label="Suche">
             <button class="icon-btn" type="submit" aria-label="Suchen" ${searchLocked ? 'disabled' : ''}><svg viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path d="M221.09 64a157.09 157.09 0 1 0 157.09 157.09A157.1 157.1 0 0 0 221.09 64z" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="32"/><path d="M338.29 338.29 448 448" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="32"/></svg></button>
           </form>
+          <div id="song-history" class="song-history" hidden></div>
           <button type="button" class="btn secondary" data-action="recommendations" ${searchLocked ? 'disabled' : ''}>${state.recsLoading ? 'Lädt …' : 'Empfehlungen'}</button>
           ${recommendationsHtml()}
           ${results || (state.recommendations.length ? '' : '<p class="hint">Noch keine Treffer.</p>')}
@@ -4017,6 +4183,7 @@
       app.innerHTML = view() + modalHtml();
       mountRoster();
       mountSharedQr();
+      paintSongHistory();
       if (showBuzzer) requestAnimationFrame(focusBuzzer);
       paintPlayerSuggest();
       persistGame();
@@ -4726,6 +4893,9 @@
         return;
       }
       if (action === 'claim-search') { claimSearch(); return; }
+      if (action === 'history-source') { openHistorySource(button.dataset.source || ''); return; }
+      if (action === 'history-back') { openHistorySource(''); return; }
+      if (action === 'history-pick') { pickHistorySong(Number(button.dataset.index)); return; }
       if (action === 'qr-scan') { await joinByQr(); return; }
       if (action === 'qr-host') { net.hostLink = 'wlan'; await paintHostQr(); return; }
       if (action === 'qr-download') { await paintDownloadQr(); return; }
@@ -5044,6 +5214,10 @@
           if (!renderHold || appTextField()) return;
           render();
         }, 0);
+      });
+      app.addEventListener('change', (event) => {
+        if (event.target.id !== 'historySource') return;
+        openHistorySource(event.target.value || '');
       });
     }
 
